@@ -21,8 +21,10 @@ function Modal({ open, title, onClose }) {
 
 export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' })
+  const [active, setActive] = useState('ตารางนัดหมาย')
   const openModal = (title) => setModal({ open: true, title })
   const closeModal = () => setModal({ open: false, title: '' })
+  const handleClick = (title) => { setActive(title); openModal(title) }
 
   return (
     <div className="app">
@@ -31,22 +33,34 @@ export default function App() {
           <button
             type="button"
             className="brand"
-            onClick={() => openModal('ตารางนัดหมาย')}
+            onClick={() => handleClick('ตารางนัดหมาย')}
             aria-label="ไปที่ตารางนัดหมาย"
           >
-            ABSMEDIQ
+            ABSMEDiQ
           </button>
           <nav className="nav">
-            <button type="button" onClick={() => openModal('ตารางนัดหมาย')}>ตารางนัดหมาย</button>
-            <button type="button" onClick={() => openModal('บันทึกรายการ')}>บันทึกรายการ</button>
-            <button type="button" onClick={() => openModal('การชำระเงิน')}>การชำระเงิน</button>
-            <button type="button" onClick={() => openModal('สั่งซื้อสินค้า')}>สั่งซื้อสินค้า</button>
-            <button type="button" onClick={() => openModal('รายชื่อลูกค้า')}>รายชื่อลูกค้า</button>
-            <button type="button" onClick={() => openModal('รายการสินค้า')}>รายการสินค้า</button>
-            <button type="button" onClick={() => openModal('คอร์สออกกำลังกาย')}>คอร์สออกกำลังกาย</button>
-            <button type="button" onClick={() => openModal('พิมพ์เอกสาร')}>พิมพ์เอกสาร</button>
-            <button type="button" onClick={() => openModal('รายงาน')}>รายงาน</button>
-            <button type="button" onClick={() => openModal('ตั้งค่า')}>ตั้งค่า</button>
+            {[
+              'ตารางนัดหมาย',
+              'บันทึกรายการ',
+              'การชำระเงิน',
+              'สั่งซื้อสินค้า',
+              'รายชื่อลูกค้า',
+              'รายการสินค้า',
+              'คอร์สออกกำลังกาย',
+              'พิมพ์เอกสาร',
+              'รายงาน',
+              'ตั้งค่า',
+            ].map((label) => (
+              <button
+                key={label}
+                type="button"
+                className={active === label ? 'active' : ''}
+                onClick={() => handleClick(label)}
+                aria-current={active === label ? 'page' : undefined}
+              >
+                {label}
+              </button>
+            ))}
           </nav>
         </div>
       </header>
@@ -54,7 +68,7 @@ export default function App() {
       <main>
         <div className="container">
           <h1>หน้าหลัก</h1>
-          <p>นี่คือหน้าเดียวหลักของเว็บไซต์ ABSMEDIQ.</p>
+          <p>นี่คือหน้าเดียวหลักของเว็บไซต์ ABSMEDiQ.</p>
         </div>
       </main>
 
