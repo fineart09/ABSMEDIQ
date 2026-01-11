@@ -28,7 +28,14 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="container">
-          <div className="brand">ABSMEDIQ</div>
+          <button
+            type="button"
+            className="brand"
+            onClick={() => openModal('ตารางนัดหมาย')}
+            aria-label="ไปที่ตารางนัดหมาย"
+          >
+            ABSMEDIQ
+          </button>
           <nav className="nav">
             <button type="button" onClick={() => openModal('ตารางนัดหมาย')}>ตารางนัดหมาย</button>
             <button type="button" onClick={() => openModal('บันทึกรายการ')}>บันทึกรายการ</button>
