@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logoUrl from '../logo.png'
 
 function Modal({ open, title, onClose }) {
   if (!open) return null
@@ -36,7 +37,7 @@ export default function App() {
             onClick={() => handleClick('ตารางนัดหมาย')}
             aria-label="ไปที่ตารางนัดหมาย"
           >
-            ABSMEDiQ
+            <img src={logoUrl} alt="ABSMEDIQ logo" />
           </button>
           <nav className="nav">
             {[
@@ -46,7 +47,7 @@ export default function App() {
               'สั่งซื้อสินค้า',
               'รายชื่อลูกค้า',
               'รายการสินค้า',
-              'คอร์สออกกำลังกาย',
+              'ค่าบริการ',
               'พิมพ์เอกสาร',
               'รายงาน',
               'ตั้งค่า',
