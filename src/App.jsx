@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 function Modal({ open, title, onClose }) {
   if (!open) return null
@@ -22,9 +22,28 @@ function Modal({ open, title, onClose }) {
 export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' })
   const [active, setActive] = useState('ตารางนัดหมาย')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const openModal = (title) => setModal({ open: true, title })
   const closeModal = () => setModal({ open: false, title: '' })
   const handleClick = (title) => { setActive(title); openModal(title) }
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
 
   return (
     <div className="app">
@@ -39,8 +58,33 @@ export default function App() {
             ABSMEDiQ
           </button>
           <nav className="nav">
+            <div className="dropdown" ref={dropdownRef}>
+              <button
+                type="button"
+                className={active === 'ตารางนัดหมาย' ? 'active' : ''}
+                onClick={() => setDropdownOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={dropdownOpen}
+              >
+                ตารางนัดหมาย ▾
+              </button>
+              {dropdownOpen && (
+                <div className="dropdown-menu" role="menu">
+                  {['ตารางนัดหมาย','สร้างนัดหมาย','แก้ไขข้อมูลนัดหมาย'].map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setDropdownOpen(false); handleClick(item) }}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {[
-              'ตารางนัดหมาย',
               'บันทึกรายการ',
               'การชำระเงิน',
               'สั่งซื้อสินค้า',
