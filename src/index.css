@@ -20,14 +20,11 @@
 }
 .dropdown-menu--fixed {
   position: fixed;
-  .customers-table th,
-  .customers-table td {
-    text-align: center;
-  }
-  .customers-table td {
-    white-space: normal;
-    word-break: break-word;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dropdown-menu--fixed button {
   display: block;
   width: 100%;
   text-align: left;
@@ -48,6 +45,11 @@
 .dropdown-menu button:focus-visible {
   outline: 2px solid #158990;
   outline-offset: 2px;
+}
+/* Ensure dropdown items stack vertically and fill menu width */
+.dropdown-menu button {
+  width: 100%;
+  text-align: left;
 }
 html,
 body,

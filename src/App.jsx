@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import logoUrl from '../logo.png';
 import CreateAppointment from './pages/CreateAppointment.jsx';
 import Customers from './pages/Customers.jsx';
+import EditCustomer from './pages/EditCustomer.jsx';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -33,6 +34,7 @@ function Modal({ open, title, onClose }) {
 export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
+  const [editingCustomer, setEditingCustomer] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -266,7 +268,27 @@ export default function App() {
         );
       case 'รายชื่อลูกค้า':
       case 'ค้นหารายชื่อลูกค้า':
-        return <Customers />;
+        return (
+          <Customers
+            onEdit={(customer) => {
+              setEditingCustomer(customer);
+              setActive('แก้ไขรายชื่อลูกค้า');
+            }}
+          />
+        );
+      case 'แก้ไขรายชื่อลูกค้า':
+        return (
+          <EditCustomer
+            customer={editingCustomer}
+            onCancel={() => setActive('รายชื่อลูกค้า')}
+            onSave={(data) => {
+              console.log('แก้ไขลูกค้า:', data);
+              setEditingCustomer(null);
+              setActive('รายชื่อลูกค้า');
+              openModal('บันทึกข้อมูลลูกค้าสำเร็จ');
+            }}
+          />
+        );
       case 'การชำระเงิน':
       case 'รับชำระเงิน':
         return (

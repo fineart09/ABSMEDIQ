@@ -97,7 +97,7 @@ function CustomerModal({ customer, onClose }) {
   );
 }
 
-export default function Customers() {
+export default function Customers({ onEdit }) {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
   const [selected, setSelected] = useState(null);
@@ -202,7 +202,7 @@ export default function Customers() {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => alert(`แก้ไข: ${c.name} (${c.id})`)}
+                    onClick={() => onEdit?.(c)}
                   >
                     แก้ไขข้อมูล
                   </button>
