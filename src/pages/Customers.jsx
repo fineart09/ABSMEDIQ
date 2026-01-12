@@ -51,9 +51,56 @@ const MOCK_CUSTOMERS = [
   },
 ];
 
+function CustomerModal({ customer, onClose }) {
+  if (!customer) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`รายละเอียดลูกค้า ${customer.name} (${customer.id})`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>รายละเอียดลูกค้า</h3>
+        </div>
+        <div className="modal-body">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '160px 1fr',
+              gap: '8px 12px',
+            }}
+          >
+            <div>HN</div>
+            <div>{customer.id}</div>
+            <div>ชื่อ</div>
+            <div>{customer.name}</div>
+            <div>โทรศัพท์</div>
+            <div>{customer.phone}</div>
+            <div>อีเมล</div>
+            <div>{customer.email}</div>
+            <div>สถานะ</div>
+            <div>{customer.status}</div>
+            <div>วันที่ลงทะเบียน</div>
+            <div>{customer.lastVisit}</div>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Customers() {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     const el = stickyRef.current;
@@ -95,7 +142,7 @@ export default function Customers() {
   return (
     <section className="customers-page">
       <div className="page-sticky-header" ref={stickyRef}>
-        <h1>รายชื่อลูกค้า</h1>
+        <h1 className="page-title">รายชื่อลูกค้า</h1>
 
         <div
           className="toolbar"
@@ -114,23 +161,20 @@ export default function Customers() {
         </div>
       </div>
 
-      <div
-        className="table-card full-bleed full-bleed--gutter"
-        style={{ overflowX: 'auto' }}
-      >
+      <div className="table-card" style={{ overflowX: 'auto' }}>
         <table
           className="customers-table"
           style={{ width: '100%', borderCollapse: 'collapse' }}
         >
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: 8 }}>HN</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>ชื่อ</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>โทรศัพท์</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>อีเมล</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>สถานะ</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>วันที่ลงทะเบียน</th>
-              <th style={{ textAlign: 'left', padding: 8 }}></th>
+              <th style={{ padding: 8 }}>HN</th>
+              <th style={{ padding: 8 }}>ชื่อ</th>
+              <th style={{ padding: 8 }}>โทรศัพท์</th>
+              <th style={{ padding: 8 }}>อีเมล</th>
+              <th style={{ padding: 8 }}>สถานะ</th>
+              <th style={{ padding: 8 }}>วันที่ลงทะเบียน</th>
+              <th style={{ padding: 8 }}> </th>
             </tr>
           </thead>
           <tbody>
@@ -150,7 +194,7 @@ export default function Customers() {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => alert(`ดูข้อมูล: ${c.name} (${c.id})`)}
+                    onClick={() => setSelected(c)}
                     style={{ marginRight: 8 }}
                   >
                     ดูข้อมูล
@@ -168,6 +212,9 @@ export default function Customers() {
           </tbody>
         </table>
       </div>
+      {selected && (
+        <CustomerModal customer={selected} onClose={() => setSelected(null)} />
+      )}
     </section>
   );
 }

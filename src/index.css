@@ -7,6 +7,7 @@
   left: 0;
   background: #ffffff;
   border: 1px solid #e5e7eb;
+  table-layout: fixed; /* allow cell content to wrap predictably */
   border-radius: 0.75rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
   min-width: 200px;
@@ -19,8 +20,14 @@
 }
 .dropdown-menu--fixed {
   position: fixed;
-}
-.dropdown-menu button {
+  .customers-table th,
+  .customers-table td {
+    text-align: center;
+  }
+  .customers-table td {
+    white-space: normal;
+    word-break: break-word;
+  }
   display: block;
   width: 100%;
   text-align: left;
@@ -339,6 +346,17 @@ p {
   margin: 0;
 }
 
+/* Page section title styling (used for "รายชื่อลูกค้า") */
+.page-title {
+  /* Responsive, slightly larger than base h1 */
+  font-size: clamp(1.9rem, 1.6rem + 0.8vw, 2.4rem);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #158990; /* brand color */
+  margin: 0 0 0.5rem;
+}
+
 /* Sticky subheader (page title + toolbar) pinned under fixed header */
 .page-sticky-header {
   position: sticky;
@@ -512,6 +530,13 @@ p {
 .customers-table tbody td {
   padding: 10px 12px;
   border-top: 1px solid #f0f1f3;
+}
+.customers-table th {
+  text-align: left;
+}
+.customers-table td {
+  text-align: left;
+  white-space: nowrap;
 }
 .customers-table tbody tr:nth-child(odd) {
   background: #fbfdff;
