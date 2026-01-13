@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
-export default function EditCustomer({ customer, onCancel, onSave }) {
+export default function EditCustomer({
+  customer,
+  onCancel,
+  onSave,
+  onDefineConditions,
+  title = 'แก้ไขรายชื่อลูกค้า',
+}) {
   const [form, setForm] = useState(() => ({
     id: customer?.id || '',
     name: customer?.name || '',
@@ -34,21 +40,25 @@ export default function EditCustomer({ customer, onCancel, onSave }) {
 
   if (!customer) {
     return (
-      <div>
-        <h1>แก้ไขรายชื่อลูกค้า</h1>
+      <section>
+        <div className="page-sticky-header">
+          <h1 className="page-title">{title}</h1>
+        </div>
         <p>ไม่พบข้อมูลลูกค้าที่ต้องการแก้ไข</p>
         <div style={{ marginTop: '0.75rem' }}>
           <button type="button" className="button" onClick={onCancel}>
             กลับ
           </button>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
     <section>
-      <h1>แก้ไขรายชื่อลูกค้า</h1>
+      <div className="page-sticky-header">
+        <h1 className="page-title">{title}</h1>
+      </div>
       <form
         onSubmit={submit}
         style={{ display: 'grid', gap: '0.75rem', maxWidth: 640 }}
@@ -121,6 +131,13 @@ export default function EditCustomer({ customer, onCancel, onSave }) {
         <div
           style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}
         >
+          <button
+            type="button"
+            className="button"
+            onClick={() => onDefineConditions?.(form)}
+          >
+            กำหนดเงื่อนไขลูกค้า
+          </button>
           <button type="button" className="button" onClick={onCancel}>
             ยกเลิก
           </button>

@@ -304,18 +304,27 @@ body {
 }
 .modal {
   width: min(520px, 92%);
+  max-height: min(80vh, 680px);
   background: #ffffff;
   color: #111827;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
 }
 .modal-header {
   padding: 1rem 1rem 0.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
+.modal-header h3 {
+  color: #158990; /* match page title brand color */
+}
 .modal-body {
   padding: 1rem;
+  overflow: auto; /* allow content to scroll within popup */
+  flex: 1;
+  min-height: 0; /* fix flexbox overflow issues */
 }
 .modal-actions {
   display: flex;
@@ -505,6 +514,15 @@ p {
   outline-offset: 2px;
 }
 
+/* Disabled button appearance */
+.button:disabled {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* Table card wrapper for nicer visuals */
 .table-card {
   width: 100%;
@@ -578,4 +596,130 @@ p {
   color: #b91c1c;
   background: rgba(220, 38, 38, 0.08);
   border-color: rgba(220, 38, 38, 0.22);
+}
+
+/* ---- Form styles (Create/Edit Customer) ---- */
+.form-card {
+  width: min(900px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.25rem;
+}
+
+.form-section {
+  margin-top: 0.25rem;
+}
+.form-section__title {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.1rem;
+  color: #0f766e;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+label {
+  font-weight: 600;
+}
+
+.input,
+.select,
+.textarea {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: 2px solid rgba(21, 137, 144, 0.5);
+  outline-offset: 1px;
+}
+
+.field-error {
+  color: crimson;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Inline pair for TH/ENG inputs inside a single field cell */
+.inline-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.inline-pair > div {
+  display: flex;
+  flex-direction: column;
+}
+.sub-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .inline-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Icon inside input wrapper */
+.input-with-icon {
+  position: relative;
+}
+.input-with-icon .input,
+.input-with-icon .textarea,
+.input-with-icon .select {
+  padding-left: 34px;
+}
+.input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Receipt address and condition notes sizing inside popup */
+.receipt-address,
+.condition-notes {
+  width: 100%;
+  min-height: 68px; /* ~30% smaller than 96px */
+  max-height: 20vh; /* ~30% smaller than 28vh */
+  overflow: auto;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .receipt-address,
+  .condition-notes {
+    max-height: 15vh; /* ~30% smaller than 22vh on small screens */
+  }
 }

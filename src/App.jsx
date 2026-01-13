@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import logoUrl from '../logo.png';
 import CreateAppointment from './pages/CreateAppointment.jsx';
+import CreateCustomer from './pages/CreateCustomer.jsx';
 import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
 
@@ -35,6 +36,8 @@ export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [customerStatusOverrides, setCustomerStatusOverrides] = useState({});
+  const [customerConditions, setCustomerConditions] = useState({});
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -189,11 +192,7 @@ export default function App() {
     {
       id: 'customers',
       label: 'รายชื่อลูกค้า',
-      items: [
-        'ค้นหารายชื่อลูกค้า',
-        'สร้างรายชื่อลูกค้าใหม่',
-        'กำหนดเงื่อนไขสถานะลูกค้า',
-      ],
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'products',
@@ -270,21 +269,68 @@ export default function App() {
         return (
           <Customers
             onEdit={(customer) => {
-              setEditingCustomer(customer);
+              const override = customerStatusOverrides[customer.hn];
+              setEditingCustomer(
+                override ? { ...customer, status: override } : customer
+              );
               setActive('แก้ไขรายชื่อลูกค้า');
+            }}
+            onCreateNew={() => {
+              setActive('สร้างรายชื่อลูกค้าใหม่');
+            }}
+            statusOverrides={customerStatusOverrides}
+          />
+        );
+      case 'สร้างรายชื่อลูกค้าใหม่':
+        return (
+          <CreateCustomer
+            onCancel={() => setActive('รายชื่อลูกค้า')}
+            onSave={(data) => {
+              console.log('สร้างลูกค้าใหม่:', data);
+              setActive('รายชื่อลูกค้า');
+              openModal('สร้างรายชื่อลูกค้าสำเร็จ');
             }}
           />
         );
       case 'แก้ไขรายชื่อลูกค้า':
         return (
-          <EditCustomer
-            customer={editingCustomer}
+          <CreateCustomer
+            title="แก้ไขรายชื่อลูกค้า"
+            initial={editingCustomer}
+            initialConditions={
+              editingCustomer
+                ? customerConditions[editingCustomer.hn]
+                : undefined
+            }
             onCancel={() => setActive('รายชื่อลูกค้า')}
             onSave={(data) => {
               console.log('แก้ไขลูกค้า:', data);
+              if (data?.hn && data?.status) {
+                setCustomerStatusOverrides((prev) => ({
+                  ...prev,
+                  [data.hn]: data.status,
+                }));
+              }
               setEditingCustomer(null);
               setActive('รายชื่อลูกค้า');
               openModal('บันทึกข้อมูลลูกค้าสำเร็จ');
+            }}
+            onDefineConditions={(cond) => {
+              if (!cond?.customer?.hn) {
+                openModal('ไม่พบ HN ของลูกค้า');
+                return;
+              }
+              setCustomerConditions((prev) => ({
+                ...prev,
+                [cond.customer.hn]: {
+                  segment: cond.segment || '',
+                  discount: cond.discount ?? '',
+                  notes: cond.notes || '',
+                  receiptName: cond.receiptName || '',
+                  receiptAddress: cond.receiptAddress || '',
+                },
+              }));
+              openModal('บันทึกเงื่อนไขลูกค้าสำเร็จ');
             }}
           />
         );

@@ -1,55 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import MOCK_CUSTOMERS_FULL from '../mocks/customersFull';
+const displayName = (c) => {
+  const thFirst = c?.name?.firstTh || '';
+  const thLast = c?.name?.lastTh || '';
+  const enFirst = c?.name?.firstEn || '';
+  const enLast = c?.name?.lastEn || '';
+  const nick = c?.name?.nickname || '';
+  if (thFirst || thLast) return `${thFirst} ${thLast}`.trim();
+  if (enFirst || enLast) return `${enFirst} ${enLast}`.trim();
+  if (nick) return nick;
+  return 'ไม่ระบุ';
+};
 
-const MOCK_CUSTOMERS = [
-  {
-    id: 'HN001',
-    name: 'สมชาย ใจดี',
-    phone: '081-234-5678',
-    email: 'somchai@example.com',
-    status: 'Active',
-    lastVisit: '2025-12-10',
-  },
-  {
-    id: 'HN002',
-    name: 'นางสาว สุกัญญา มั่นคง',
-    phone: '082-345-6789',
-    email: 'sukanya@example.com',
-    status: 'Active',
-    lastVisit: '2025-11-05',
-  },
-  {
-    id: 'HN003',
-    name: 'นาย ปรีชา เกษมสุข',
-    phone: '083-456-7890',
-    email: 'preecha@example.com',
-    status: 'Inactive',
-    lastVisit: '2024-09-20',
-  },
-  {
-    id: 'HN004',
-    name: 'นางสาว กาญจนา ประเสริฐ',
-    phone: '084-567-8901',
-    email: 'kanjana@example.com',
-    status: 'Active',
-    lastVisit: '2025-10-01',
-  },
-  {
-    id: 'HN005',
-    name: 'นาย สมศักดิ์ หาญกล้า',
-    phone: '085-678-9012',
-    email: 'somsak@example.com',
-    status: 'Delinquent',
-    lastVisit: '2023-06-12',
-  },
-  {
-    id: 'HN006',
-    name: 'บริษัท ทดสอบ จำกัด',
-    phone: '02-123-4567',
-    email: 'corp@example.com',
-    status: 'Active',
-    lastVisit: '2025-01-15',
-  },
-];
+const MOCK_CUSTOMERS = (
+  Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []
+).map((c, i) => ({
+  id: c.hn || `HN${String(i + 1).padStart(3, '0')}`,
+  name: displayName(c),
+  phone: c?.details?.phone || '',
+  email: c?.details?.email || '',
+  status: c.status || 'ใช้งาน',
+  lastVisit: c.lastVisit || '',
+  segment: c.segment || '',
+  discount: c.discount || '',
+}));
+
+const FULL_INDEX = new Map(
+  (Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []).map((c) => [
+    c.hn,
+    c,
+  ])
+);
 
 function CustomerModal({ customer, onClose }) {
   if (!customer) return null;
@@ -97,7 +78,7 @@ function CustomerModal({ customer, onClose }) {
   );
 }
 
-export default function Customers({ onEdit }) {
+export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
   const [selected, setSelected] = useState(null);
@@ -126,10 +107,24 @@ export default function Customers({ onEdit }) {
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  const base = useMemo(() => {
+    const src = Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : [];
+    return src.map((c, i) => ({
+      id: c.hn || `HN${String(i + 1).padStart(3, '0')}`,
+      name: displayName(c),
+      phone: c?.details?.phone || '',
+      email: c?.details?.email || '',
+      status: statusOverrides?.[c.hn] || c.status || 'ใช้งาน',
+      lastVisit: c.lastVisit || '',
+      segment: c.segment || '',
+      discount: c.discount || '',
+    }));
+  }, [statusOverrides]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return MOCK_CUSTOMERS;
-    return MOCK_CUSTOMERS.filter((c) => {
+    if (!q) return base;
+    return base.filter((c) => {
       return (
         c.name.toLowerCase().includes(q) ||
         c.phone.toLowerCase().includes(q) ||
@@ -137,12 +132,29 @@ export default function Customers({ onEdit }) {
         c.id.toLowerCase().includes(q)
       );
     });
-  }, [query]);
+  }, [query, base]);
 
   return (
     <section className="customers-page">
       <div className="page-sticky-header" ref={stickyRef}>
-        <h1 className="page-title">รายชื่อลูกค้า</h1>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          <h1 className="page-title">รายชื่อลูกค้า</h1>
+          <button
+            type="button"
+            className="button"
+            onClick={() => onCreateNew?.()}
+          >
+            สร้างรายชื่อลูกค้าใหม่
+          </button>
+        </div>
 
         <div
           className="toolbar"
@@ -185,7 +197,16 @@ export default function Customers({ onEdit }) {
                 <td style={{ padding: 8 }}>{c.phone}</td>
                 <td style={{ padding: 8 }}>{c.email}</td>
                 <td style={{ padding: 8 }}>
-                  <span className={`badge badge--${c.status.toLowerCase()}`}>
+                  <span
+                    className={
+                      'badge badge--' +
+                      (c.status === 'ใช้งาน'
+                        ? 'active'
+                        : c.status === 'ไม่ใช้งาน'
+                        ? 'inactive'
+                        : String(c.status || '').toLowerCase())
+                    }
+                  >
                     {c.status}
                   </span>
                 </td>
@@ -202,7 +223,7 @@ export default function Customers({ onEdit }) {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => onEdit?.(c)}
+                    onClick={() => onEdit?.(FULL_INDEX.get(c.id) || c)}
                   >
                     แก้ไขข้อมูล
                   </button>
