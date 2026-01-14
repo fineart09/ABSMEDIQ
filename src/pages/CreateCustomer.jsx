@@ -12,13 +12,28 @@ export default function CreateCustomer({
   const [condOpen, setCondOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerTarget, setPickerTarget] = useState(null);
   const [useCustomReceipt, setUseCustomReceipt] = useState(() =>
     Boolean(initialConditions?.receiptName || initialConditions?.receiptAddress)
+  );
+  const [useAddName, setUseAddName] = useState(() =>
+    Boolean(
+      (initialConditions?.segmentTexts &&
+        initialConditions.segmentTexts.length) ||
+        initialConditions?.segmentText
+    )
   );
   const [cond, setCond] = useState(() => ({
     segment: initialConditions?.segment || '',
     discount: initialConditions?.discount ?? '',
     notes: initialConditions?.notes || '',
+    extraNames:
+      Array.isArray(initialConditions?.segmentTexts) &&
+      initialConditions.segmentTexts.length
+        ? [...initialConditions.segmentTexts]
+        : initialConditions?.segmentText
+        ? [initialConditions.segmentText]
+        : [],
     receiptName: initialConditions?.receiptName || '',
     receiptAddress: initialConditions?.receiptAddress || '',
   }));
@@ -921,112 +936,167 @@ export default function CreateCustomer({
                       />
                     </label>
                   </div>
+
                   <label>
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         marginBottom: '0.25rem',
+                        gap: '0.75rem',
                       }}
                     >
-                      <span>ชื่อบนใบเสร็จ</span>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={useAddName}
+                          onChange={(e) => setUseAddName(e.target.checked)}
+                        />
+                        เพิ่มรายชื่อ
+                      </label>
                     </div>
+                    {/* ปุ่มจะอยู่ในแต่ละบรรทัดของรายชื่อ */}
+                  </label>
+
+                  {(Array.isArray(cond.extraNames) && cond.extraNames.length
+                    ? cond.extraNames
+                    : ['']
+                  ).map((name, i, arr) => (
                     <div
+                      key={`extra-name-${i}`}
                       className="inline-pair"
                       style={{
-                        gridTemplateColumns: '2fr auto',
+                        gridTemplateColumns: '1fr auto auto',
                         alignItems: 'center',
                       }}
                     >
                       <div className="input-with-icon" style={{ flex: 1 }}>
-                        <span className="input-icon" aria-hidden>
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M21 21l-4.35-4.35" />
-                            <circle cx="10" cy="10" r="7" />
-                          </svg>
-                        </span>
                         <input
-                          value={cond.receiptName}
+                          value={name}
                           onChange={(e) =>
-                            setCond((c) => ({
-                              ...c,
-                              receiptName: e.target.value,
-                            }))
+                            setCond((c) => {
+                              const next = [...(c.extraNames || [])];
+                              next[i] = e.target.value;
+                              return { ...c, extraNames: next };
+                            })
                           }
                           className="input"
-                          placeholder="ระบุชื่อที่ต้องการพิมพ์ในใบเสร็จ"
-                          disabled={!useCustomReceipt}
+                          placeholder="ระบุรายชื่อ 1 บรรทัด"
+                          disabled={!useAddName}
+                          style={{
+                            padding: '6px 8px',
+                            fontSize: '0.9em',
+                            maxWidth: 360,
+                          }}
+                          onClick={() => {
+                            if (!useAddName) return;
+                            setPickerTarget({ type: 'extraName', index: i });
+                            setPickerOpen(true);
+                          }}
                         />
                       </div>
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => setPickerOpen(true)}
-                        aria-label="เลือกรายชื่อจาก HN"
-                        disabled={!useCustomReceipt}
-                      >
-                        <span
-                          aria-hidden
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
+                      {i !== arr.length - 1 ? (
+                        <button
+                          type="button"
+                          className="button"
+                          aria-label="เพิ่มรายชื่อ"
+                          disabled={
+                            !useAddName ||
+                            (Array.isArray(cond.extraNames) &&
+                              cond.extraNames.length >= 5)
+                          }
+                          onClick={() => {
+                            if (!useAddName) return;
+                            setCond((c) => {
+                              let next = Array.isArray(c.extraNames)
+                                ? [...c.extraNames]
+                                : [];
+                              if (next.length === 0) next = [''];
+                              if (next.length >= 5) return c;
+                              next.splice(i + 1, 0, '');
+                              return { ...c, extraNames: next };
+                            });
                           }}
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                          <span
+                            aria-hidden
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
                           >
-                            <path d="M21 21l-4.35-4.35" />
-                            <circle cx="10" cy="10" r="7" />
-                          </svg>
-                          เลือกจาก HN
-                        </span>
-                      </button>
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="16"
+                              height="16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M12 5v14" />
+                              <path d="M5 12h14" />
+                            </svg>
+                            เพิ่ม
+                          </span>
+                        </button>
+                      ) : (
+                        <div></div>
+                      )}
+                      {i !== 0 ? (
+                        <button
+                          type="button"
+                          className="button"
+                          aria-label="ลบรายชื่อ"
+                          disabled={!useAddName}
+                          onClick={() => {
+                            if (!useAddName) return;
+                            setCond((c) => {
+                              const next = Array.isArray(c.extraNames)
+                                ? [...c.extraNames]
+                                : [];
+                              next.splice(i, 1);
+                              return { ...c, extraNames: next };
+                            });
+                          }}
+                        >
+                          <span
+                            aria-hidden
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="16"
+                              height="16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M5 12h14" />
+                            </svg>
+                            ลบ
+                          </span>
+                        </button>
+                      ) : (
+                        <div></div>
+                      )}
                     </div>
-                  </label>
-                  <div
-                    className="inline-pair"
-                    style={{
-                      gridTemplateColumns: '2fr auto',
-                      alignItems: 'start',
-                    }}
-                  >
-                    <div>
-                      <label>
-                        ที่อยู่บนใบเสร็จ
-                        <textarea
-                          value={cond.receiptAddress}
-                          onChange={(e) =>
-                            setCond((c) => ({
-                              ...c,
-                              receiptAddress: e.target.value,
-                            }))
-                          }
-                          rows={3}
-                          className="textarea receipt-address"
-                          placeholder="ระบุที่อยู่สำหรับใบเสร็จ"
-                          disabled={!useCustomReceipt}
-                        />
-                      </label>
-                    </div>
-                    <div></div>
-                  </div>
+                  ))}
+
                   <div
                     className="inline-pair"
                     style={{
@@ -1049,99 +1119,83 @@ export default function CreateCustomer({
                     </div>
                     <div></div>
                   </div>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    marginTop: '0.5rem',
-                  }}
-                >
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={useCustomReceipt}
-                      onChange={(e) => setUseCustomReceipt(e.target.checked)}
-                    />
-                    ใช้ชื่ออื่นบนใบเสร็จ
-                  </label>
-                </div>
-                {pickerOpen && (
-                  <div
-                    style={{
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '0.5rem',
-                      padding: '0.5rem',
-                      background: '#fafafa',
-                      margin: '0 20px',
-                    }}
-                  >
+
+                  {pickerOpen && (
                     <div
                       style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        alignItems: 'center',
-                        marginBottom: '0.5rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        padding: '0.5rem',
+                        background: '#fafafa',
+                        margin: '0 20px',
                       }}
                     >
-                      <input
-                        value={pickerQuery}
-                        onChange={(e) => setPickerQuery(e.target.value)}
-                        className="input"
-                        placeholder="ค้นหา HN หรือชื่อ"
-                        aria-label="ค้นหา HN หรือชื่อ"
-                      />
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => setPickerOpen(false)}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '0.5rem',
+                          alignItems: 'center',
+                          marginBottom: '0.5rem',
+                        }}
                       >
-                        ปิด
-                      </button>
-                    </div>
-                    <div style={{ maxHeight: 220, overflow: 'auto' }}>
-                      {filteredHN.map((c) => (
+                        <input
+                          value={pickerQuery}
+                          onChange={(e) => setPickerQuery(e.target.value)}
+                          className="input"
+                          placeholder="ค้นหา HN หรือชื่อ"
+                          aria-label="ค้นหา HN หรือชื่อ"
+                        />
                         <button
-                          key={c.hn}
                           type="button"
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '100px 1fr',
-                            gap: '0.5rem',
-                            width: '100%',
-                            textAlign: 'left',
-                            padding: '0.4rem 0.5rem',
-                            borderBottom: '1px solid #eee',
-                          }}
-                          onClick={() => {
-                            setCond((prev) => ({
-                              ...prev,
-                              receiptName: composeThaiName(c),
-                              receiptAddress: composeThaiAddress(c),
-                            }));
-                            setPickerOpen(false);
-                          }}
+                          className="button"
+                          onClick={() => setPickerOpen(false)}
                         >
-                          <span style={{ fontWeight: 600 }}>{c.hn}</span>
-                          <span>
-                            {composeThaiName(c)}
-                            <div
-                              style={{ fontSize: '0.85em', color: '#6b7280' }}
-                            >
-                              {composeThaiAddress(c)}
-                            </div>
-                          </span>
+                          ปิด
                         </button>
-                      ))}
+                      </div>
+                      <div style={{ maxHeight: 220, overflow: 'auto' }}>
+                        {filteredHN.map((c) => (
+                          <button
+                            key={c.hn}
+                            type="button"
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '100px 1fr',
+                              gap: '0.5rem',
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '0.4rem 0.5rem',
+                              borderBottom: '1px solid #eee',
+                            }}
+                            onClick={() => {
+                              if (pickerTarget?.type === 'extraName') {
+                                setCond((prev) => {
+                                  const arr = Array.isArray(prev.extraNames)
+                                    ? [...prev.extraNames]
+                                    : [];
+                                  const idx = pickerTarget.index ?? 0;
+                                  arr[idx] = composeThaiName(c);
+                                  return { ...prev, extraNames: arr };
+                                });
+                              }
+                              setPickerOpen(false);
+                            }}
+                          >
+                            <span style={{ fontWeight: 600 }}>{c.hn}</span>
+                            <span>
+                              {composeThaiName(c)}
+                              <div
+                                style={{ fontSize: '0.85em', color: '#6b7280' }}
+                              >
+                                {composeThaiAddress(c)}
+                              </div>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               <div className="modal-actions">
                 <button
