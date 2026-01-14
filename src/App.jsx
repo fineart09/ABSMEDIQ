@@ -324,12 +324,7 @@ export default function App() {
                 ...prev,
                 [cond.customer.hn]: {
                   segment: cond.segment || '',
-                  segmentText: Array.isArray(cond.extraNames)
-                    ? cond.extraNames[0] || ''
-                    : '',
-                  segmentTexts: Array.isArray(cond.extraNames)
-                    ? cond.extraNames
-                    : [],
+                  segmentText: cond.segmentText || '',
                   discount: cond.discount ?? '',
                   notes: cond.notes || '',
                   receiptName: cond.receiptName || '',

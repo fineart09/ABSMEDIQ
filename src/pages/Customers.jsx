@@ -14,16 +14,20 @@ const displayName = (c) => {
 
 const MOCK_CUSTOMERS = (
   Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []
-).map((c, i) => ({
-  id: c.hn || `HN${String(i + 1).padStart(3, '0')}`,
-  name: displayName(c),
-  phone: c?.details?.phone || '',
-  email: c?.details?.email || '',
-  status: c.status || 'ใช้งาน',
-  lastVisit: c.lastVisit || '',
-  segment: c.segment || '',
-  discount: c.discount || '',
-}));
+).map((c, i) => {
+  const hn = c.hn || `HN${String(i + 1).padStart(3, '0')}`;
+  return {
+    id: hn,
+    hn,
+    name: displayName(c),
+    phone: c?.details?.phone || '',
+    email: c?.details?.email || '',
+    status: c.status || 'ใช้งาน',
+    lastVisit: c.lastVisit || '',
+    segment: c.segment || '',
+    discount: c.discount || '',
+  };
+});
 
 const FULL_INDEX = new Map(
   (Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []).map((c) => [

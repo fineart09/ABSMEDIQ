@@ -9,36 +9,48 @@ export default function CreateCustomer({
   onDefineConditions,
   initialConditions,
 }) {
+  const photoInputRef = useRef(null);
+  const [photoUrl, setPhotoUrl] = useState(() => initial?.photoUrl || '');
+  const originalPhotoUrlRef = useRef(initial?.photoUrl || '');
   const [condOpen, setCondOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
-  const [pickerTarget, setPickerTarget] = useState(null);
-  const photoInputRef = useRef(null);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [useCustomReceipt, setUseCustomReceipt] = useState(() =>
-    Boolean(initialConditions?.receiptName || initialConditions?.receiptAddress)
-  );
+  const [pickerLineIndex, setPickerLineIndex] = useState(0);
+
+  useEffect(() => {
+    originalPhotoUrlRef.current = initial?.photoUrl || '';
+    setPhotoUrl(initial?.photoUrl || '');
+  }, [initial]);
   const [useAddName, setUseAddName] = useState(() =>
-    Boolean(
-      (initialConditions?.segmentTexts &&
-        initialConditions.segmentTexts.length) ||
-        initialConditions?.segmentText
-    )
+    Boolean(initialConditions?.segmentText)
   );
   const [cond, setCond] = useState(() => ({
     segment: initialConditions?.segment || '',
     discount: initialConditions?.discount ?? '',
     notes: initialConditions?.notes || '',
-    extraNames:
-      Array.isArray(initialConditions?.segmentTexts) &&
-      initialConditions.segmentTexts.length
-        ? [...initialConditions.segmentTexts]
-        : initialConditions?.segmentText
-        ? [initialConditions.segmentText]
-        : [],
-    receiptName: initialConditions?.receiptName || '',
-    receiptAddress: initialConditions?.receiptAddress || '',
+    segmentText: initialConditions?.segmentText || '',
   }));
+
+  const [segmentLines, setSegmentLines] = useState(() => {
+    const raw = initialConditions?.segmentText || '';
+    const lines = raw
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return lines.length ? lines : [''];
+  });
+
+  useEffect(() => {
+    if (!useAddName) {
+      setCond((prev) => ({ ...prev, segmentText: '' }));
+      return;
+    }
+    const joined = segmentLines
+      .map((s) => (s || '').trim())
+      .filter(Boolean)
+      .join('\n');
+    setCond((prev) => ({ ...prev, segmentText: joined }));
+  }, [segmentLines, useAddName]);
 
   const filteredHN = useMemo(() => {
     const q = pickerQuery.trim().toLowerCase();
@@ -52,11 +64,7 @@ export default function CreateCustomer({
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      return (
-        (c.hn || '').toLowerCase().includes(q) ||
-        thName.includes(q) ||
-        enName.includes(q)
-      );
+      return thName.includes(q) || enName.includes(q);
     });
   }, [pickerQuery]);
 
@@ -81,25 +89,17 @@ export default function CreateCustomer({
         status: 'ใช้งาน',
         // Name
         prefixTh: '',
-        prefixEn: '',
         firstNameTh: '',
-        firstNameEn: '',
         lastNameTh: '',
-        lastNameEn: '',
         nickname: '',
         // Address
         addressTh: '',
-        addressEn: '',
         provinceTh: '',
-        provinceEn: '',
         postalCode: '',
         districtTh: '',
-        districtEn: '',
         subdistrictTh: '',
-        subdistrictEn: '',
         // Details
         genderTh: '',
-        genderEn: '',
         bloodGroup: '',
         birthDate: '',
         phone: '',
@@ -113,25 +113,17 @@ export default function CreateCustomer({
       status: initial.status || 'ใช้งาน',
       // Name
       prefixTh: initial.name?.prefixTh || '',
-      prefixEn: initial.name?.prefixEn || '',
       firstNameTh: initial.name?.firstTh || '',
-      firstNameEn: initial.name?.firstEn || '',
       lastNameTh: initial.name?.lastTh || '',
-      lastNameEn: initial.name?.lastEn || '',
       nickname: initial.name?.nickname || '',
       // Address
       addressTh: initial.address?.addressTh || '',
-      addressEn: initial.address?.addressEn || '',
       provinceTh: initial.address?.provinceTh || '',
-      provinceEn: initial.address?.provinceEn || '',
       postalCode: initial.address?.postalCode || '',
       districtTh: initial.address?.districtTh || '',
-      districtEn: initial.address?.districtEn || '',
       subdistrictTh: initial.address?.subdistrictTh || '',
-      subdistrictEn: initial.address?.subdistrictEn || '',
       // Details
       genderTh: initial.details?.genderTh || '',
-      genderEn: initial.details?.genderEn || '',
       bloodGroup: initial.details?.bloodGroup || '',
       birthDate: initial.details?.birthDate || '',
       phone: initial.details?.phone || '',
@@ -144,29 +136,35 @@ export default function CreateCustomer({
   const [form, setForm] = useState(makeInitial);
   const isInactive = form.status === 'ไม่ใช้งาน';
 
-  // When not using custom receipt info, keep name/address in sync with the customer's form.
+  const onPhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUrl((prev) => {
+      if (prev?.startsWith?.('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearOrResetPhoto = () => {
+    const original = originalPhotoUrlRef.current || '';
+    setPhotoUrl((prev) => {
+      if (prev?.startsWith?.('blob:')) URL.revokeObjectURL(prev);
+      if (prev && prev !== original) return original;
+      return '';
+    });
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
   useEffect(() => {
-    if (!useCustomReceipt) {
-      const name = [form.prefixTh, form.firstNameTh, form.lastNameTh]
-        .filter(Boolean)
-        .join(' ');
-      const addr = [
-        form.addressTh,
-        form.subdistrictTh,
-        form.districtTh,
-        form.provinceTh,
-        form.postalCode,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      setCond((prev) => ({
-        ...prev,
-        receiptName: name,
-        receiptAddress: addr,
-      }));
-      setPickerOpen(false);
-    }
-  }, [useCustomReceipt, form]);
+    return () => {
+      if (photoUrl?.startsWith?.('blob:')) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
+
+  useEffect(() => {
+    // Keep picker closed when customer form changes
+    setPickerOpen(false);
+  }, [form]);
 
   const requiredFields = useMemo(
     () => [
@@ -245,7 +243,9 @@ export default function CreateCustomer({
 
   const update = (field) => (e) => {
     const value = e.target.value;
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) setErrors((err) => ({ ...err, [field]: '' }));
   };
 
@@ -307,6 +307,7 @@ export default function CreateCustomer({
     const payload = {
       hn: form.hn,
       status: form.status || 'ใช้งาน',
+      photoUrl: photoUrl || '',
       name: {
         prefixTh: form.prefixTh,
         firstTh: form.firstNameTh,
@@ -334,20 +335,6 @@ export default function CreateCustomer({
     onSave?.(payload);
   };
 
-  const onPhotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-  };
-  useEffect(() => {
-    return () => {
-      if (photoUrl) URL.revokeObjectURL(photoUrl);
-    };
-  }, [photoUrl]);
-
   // removed mock filler
 
   const Field = ({ label, htmlFor, required, error, children }) => (
@@ -374,84 +361,91 @@ export default function CreateCustomer({
   return (
     <section>
       <div className="page-sticky-header">
-        <h1 className="page-title">{title || 'สร้างรายชื่อลูกค้าใหม่'}</h1>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+          }}
+        >
+          <h1 className="page-title" style={{ margin: 0 }}>
+            {title || 'สร้างรายชื่อลูกค้าใหม่'}
+          </h1>
+        </div>
       </div>
       <form
         onSubmit={submit}
         className="form-card"
-        style={{ display: 'grid', gap: '1rem' }}
+        style={{
+          display: 'grid',
+          gap: '1rem',
+          position: 'relative',
+          ...(initial ? { paddingTop: '2.25rem' } : null),
+        }}
       >
+        {initial ? (
+          <span
+            className="badge badge--active badge--hn"
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              transform: 'scale(1.3)',
+              transformOrigin: 'top right',
+            }}
+          >
+            HN: {form.hn || '-'}
+          </span>
+        ) : null}
         <fieldset
           disabled={isInactive}
           style={{ border: 0, margin: 0, padding: 0 }}
         >
-          {/* Removed HN field per request */}
-
           {/* Name */}
           <div className="form-section">
-            <div
-              className="form-section__title"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.75rem',
-              }}
-            >
-              <h3 style={{ margin: 0 }}>ชื่อ / Name</h3>
-              {form?.hn ? (
-                <span className="badge badge--active badge--hn">
-                  HN: {form.hn}
-                </span>
-              ) : null}
-            </div>
+            <h3 className="form-section__title">ชื่อ</h3>
             <div className="form-grid">
               <Field label="คำนำหน้า" htmlFor="cc-prefix-th" required>
-                <div>
-                  <input
-                    id="cc-prefix-th"
-                    value={form.prefixTh}
-                    onChange={update('prefixTh')}
-                    className="input"
-                  />
-                  {errors.prefixTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.prefixTh}
-                    </div>
-                  ) : null}
-                </div>
+                <input
+                  id="cc-prefix-th"
+                  value={form.prefixTh}
+                  onChange={update('prefixTh')}
+                  className="input"
+                />
+                {errors.prefixTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.prefixTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field label="ชื่อ" htmlFor="cc-first-th" required>
-                <div>
-                  <input
-                    id="cc-first-th"
-                    value={form.firstNameTh}
-                    onChange={update('firstNameTh')}
-                    className="input"
-                  />
-                  {errors.firstNameTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.firstNameTh}
-                    </div>
-                  ) : null}
-                </div>
+                <input
+                  id="cc-first-th"
+                  value={form.firstNameTh}
+                  onChange={update('firstNameTh')}
+                  className="input"
+                />
+                {errors.firstNameTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.firstNameTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field label="นามสกุล" htmlFor="cc-last-th" required>
-                <div>
-                  <input
-                    id="cc-last-th"
-                    value={form.lastNameTh}
-                    onChange={update('lastNameTh')}
-                    className="input"
-                  />
-                  {errors.lastNameTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.lastNameTh}
-                    </div>
-                  ) : null}
-                </div>
+                <input
+                  id="cc-last-th"
+                  value={form.lastNameTh}
+                  onChange={update('lastNameTh')}
+                  className="input"
+                />
+                {errors.lastNameTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.lastNameTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field
@@ -471,46 +465,42 @@ export default function CreateCustomer({
 
           {/* Address */}
           <div className="form-section">
-            <h3 className="form-section__title">ที่อยู่ / Address</h3>
+            <h3 className="form-section__title">ที่อยู่</h3>
             <div className="form-grid">
               <Field label="ที่อยู่" htmlFor="cc-addr-th" required>
-                <div>
-                  <textarea
-                    id="cc-addr-th"
-                    value={form.addressTh}
-                    onChange={update('addressTh')}
-                    rows={2}
-                    className="textarea"
-                  />
-                  {errors.addressTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.addressTh}
-                    </div>
-                  ) : null}
-                </div>
+                <textarea
+                  id="cc-addr-th"
+                  value={form.addressTh}
+                  onChange={update('addressTh')}
+                  rows={2}
+                  className="textarea"
+                />
+                {errors.addressTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.addressTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field label="จังหวัด" htmlFor="cc-province-th" required>
-                <div>
-                  <select
-                    id="cc-province-th"
-                    value={form.provinceTh}
-                    onChange={onProvinceSelect}
-                    className="select"
-                  >
-                    <option value="">-- เลือกจังหวัด --</option>
-                    {provinces.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.provinceTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.provinceTh}
-                    </div>
-                  ) : null}
-                </div>
+                <select
+                  id="cc-province-th"
+                  value={form.provinceTh}
+                  onChange={onProvinceSelect}
+                  className="select"
+                >
+                  <option value="">-- เลือกจังหวัด --</option>
+                  {provinces.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                {errors.provinceTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.provinceTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field
@@ -554,73 +544,67 @@ export default function CreateCustomer({
               </Field>
 
               <Field label="อำเภอ" htmlFor="cc-district-th" required>
-                <div>
-                  <select
-                    id="cc-district-th"
-                    value={form.districtTh}
-                    onChange={onDistrictSelect}
-                    className="select"
-                    disabled={!form.provinceTh}
-                  >
-                    <option value="">-- เลือกอำเภอ --</option>
-                    {amphoes.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.districtTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.districtTh}
-                    </div>
-                  ) : null}
-                </div>
+                <select
+                  id="cc-district-th"
+                  value={form.districtTh}
+                  onChange={onDistrictSelect}
+                  className="select"
+                  disabled={!form.provinceTh}
+                >
+                  <option value="">-- เลือกอำเภอ --</option>
+                  {amphoes.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+                {errors.districtTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.districtTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field label="ตำบล" htmlFor="cc-subdistrict-th" required>
-                <div>
-                  <select
-                    id="cc-subdistrict-th"
-                    value={form.subdistrictTh}
-                    onChange={onSubdistrictSelect}
-                    className="select"
-                    disabled={!form.provinceTh || !form.districtTh}
-                  >
-                    <option value="">-- เลือกตำบล --</option>
-                    {districts.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.subdistrictTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.subdistrictTh}
-                    </div>
-                  ) : null}
-                </div>
+                <select
+                  id="cc-subdistrict-th"
+                  value={form.subdistrictTh}
+                  onChange={onSubdistrictSelect}
+                  className="select"
+                  disabled={!form.provinceTh || !form.districtTh}
+                >
+                  <option value="">-- เลือกตำบล --</option>
+                  {districts.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                {errors.subdistrictTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.subdistrictTh}
+                  </div>
+                ) : null}
               </Field>
             </div>
           </div>
 
           {/* Details */}
           <div className="form-section">
-            <h3 className="form-section__title">รายละเอียด / Description</h3>
+            <h3 className="form-section__title">รายละเอียด</h3>
             <div className="form-grid">
               <Field label="เพศ" htmlFor="cc-gender-th" required>
-                <div>
-                  <input
-                    id="cc-gender-th"
-                    value={form.genderTh}
-                    onChange={update('genderTh')}
-                    className="input"
-                  />
-                  {errors.genderTh ? (
-                    <div role="alert" className="field-error">
-                      {errors.genderTh}
-                    </div>
-                  ) : null}
-                </div>
+                <input
+                  id="cc-gender-th"
+                  value={form.genderTh}
+                  onChange={update('genderTh')}
+                  className="input"
+                />
+                {errors.genderTh ? (
+                  <div role="alert" className="field-error">
+                    {errors.genderTh}
+                  </div>
+                ) : null}
               </Field>
 
               <Field label="กรุ๊ปเลือด / อายุ" htmlFor="cc-blood">
@@ -658,22 +642,13 @@ export default function CreateCustomer({
                 </div>
               </Field>
               <Field label="วันเกิด" htmlFor="cc-birth">
-                <div
-                  className="inline-pair"
-                  style={{
-                    gridTemplateColumns: '1fr auto',
-                    alignItems: 'center',
-                  }}
-                >
-                  <input
-                    id="cc-birth"
-                    type="date"
-                    value={form.birthDate}
-                    onChange={update('birthDate')}
-                    className="input"
-                  />
-                  <div></div>
-                </div>
+                <input
+                  id="cc-birth"
+                  type="date"
+                  value={form.birthDate}
+                  onChange={update('birthDate')}
+                  className="input"
+                />
               </Field>
 
               <Field
@@ -689,7 +664,7 @@ export default function CreateCustomer({
                   className="input"
                 />
               </Field>
-              <Field label="Email" htmlFor="cc-email" error={errors.email}>
+              <Field label="อีเมล" htmlFor="cc-email" error={errors.email}>
                 <input
                   id="cc-email"
                   value={form.email}
@@ -707,6 +682,7 @@ export default function CreateCustomer({
                   className="textarea"
                 />
               </Field>
+
               {/* Upload button and photo preview below Notes */}
               <div
                 style={{
@@ -740,6 +716,14 @@ export default function CreateCustomer({
                     </span>
                   )}
                 </div>
+                <button
+                  type="button"
+                  className="button button--danger"
+                  onClick={clearOrResetPhoto}
+                  disabled={!photoUrl && !originalPhotoUrlRef.current}
+                >
+                  ลบรูป/รีเซ็ตรูป
+                </button>
               </div>
             </div>
           </div>
@@ -833,8 +817,7 @@ export default function CreateCustomer({
                       />
                     </label>
                   </div>
-
-                  <label>
+                  <div>
                     <div
                       style={{
                         display: 'flex',
@@ -853,147 +836,146 @@ export default function CreateCustomer({
                         <input
                           type="checkbox"
                           checked={useAddName}
-                          onChange={(e) => setUseAddName(e.target.checked)}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setUseAddName(next);
+                            if (
+                              next &&
+                              (!segmentLines.length ||
+                                segmentLines.every((s) => !String(s).trim()))
+                            ) {
+                              setSegmentLines(['']);
+                            }
+                          }}
                         />
                         เพิ่มรายชื่อ
                       </label>
                     </div>
-                    {/* ปุ่มจะอยู่ในแต่ละบรรทัดของรายชื่อ */}
-                  </label>
 
-                  {(Array.isArray(cond.extraNames) && cond.extraNames.length
-                    ? cond.extraNames
-                    : ['']
-                  ).map((name, i, arr) => (
-                    <div
-                      key={`extra-name-${i}`}
-                      className="inline-pair"
-                      style={{
-                        gridTemplateColumns: '1fr auto auto',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div className="input-with-icon" style={{ flex: 1 }}>
-                        <input
-                          value={name}
-                          onChange={(e) =>
-                            setCond((c) => {
-                              const next = [...(c.extraNames || [])];
-                              next[i] = e.target.value;
-                              return { ...c, extraNames: next };
-                            })
-                          }
-                          className="input"
-                          placeholder="ระบุรายชื่อ 1 บรรทัด"
-                          disabled={!useAddName}
-                          style={{
-                            padding: '6px 8px',
-                            fontSize: '0.9em',
-                            maxWidth: 360,
-                          }}
-                          onClick={() => {
-                            if (!useAddName) return;
-                            setPickerTarget({ type: 'extraName', index: i });
-                            setPickerOpen(true);
-                          }}
-                        />
-                      </div>
-                      {i !== arr.length - 1 ? (
-                        <button
-                          type="button"
-                          className="button"
-                          aria-label="เพิ่มรายชื่อ"
-                          disabled={
-                            !useAddName ||
-                            (Array.isArray(cond.extraNames) &&
-                              cond.extraNames.length >= 5)
-                          }
-                          onClick={() => {
-                            if (!useAddName) return;
-                            setCond((c) => {
-                              let next = Array.isArray(c.extraNames)
-                                ? [...c.extraNames]
-                                : [];
-                              if (next.length === 0) next = [''];
-                              if (next.length >= 5) return c;
-                              next.splice(i + 1, 0, '');
-                              return { ...c, extraNames: next };
-                            });
-                          }}
-                        >
-                          <span
-                            aria-hidden
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      {segmentLines.map((line, idx) => {
+                        const canAdd = useAddName && segmentLines.length < 5;
+                        const showAdd = idx === 0 || (idx >= 1 && idx <= 3);
+                        const showDelete = idx >= 1;
+                        const addDisabled = !canAdd;
+                        const deleteDisabled = !useAddName;
+
+                        return (
+                          <div
+                            key={idx}
+                            className="inline-pair"
                             style={{
-                              display: 'inline-flex',
+                              gridTemplateColumns: '1fr max-content',
                               alignItems: 'center',
-                              gap: 4,
                             }}
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                            <div
+                              className="input-with-icon"
+                              style={{ flex: 1, minWidth: 0, maxWidth: 420 }}
                             >
-                              <path d="M12 5v14" />
-                              <path d="M5 12h14" />
-                            </svg>
-                            เพิ่ม
-                          </span>
-                        </button>
-                      ) : (
-                        <div></div>
-                      )}
-                      {i !== 0 ? (
-                        <button
-                          type="button"
-                          className="button"
-                          aria-label="ลบรายชื่อ"
-                          disabled={!useAddName}
-                          onClick={() => {
-                            if (!useAddName) return;
-                            setCond((c) => {
-                              const next = Array.isArray(c.extraNames)
-                                ? [...c.extraNames]
-                                : [];
-                              next.splice(i, 1);
-                              return { ...c, extraNames: next };
-                            });
-                          }}
-                        >
-                          <span
-                            aria-hidden
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                            }}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                              <input
+                                value={line}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setSegmentLines((prev) =>
+                                    prev.map((s, i) => (i === idx ? v : s))
+                                  );
+                                }}
+                                className="input"
+                                placeholder={`ระบุรายชื่อบรรทัดที่ ${idx + 1}`}
+                                disabled={!useAddName}
+                                onClick={() => {
+                                  if (!useAddName) return;
+                                  setPickerLineIndex(idx);
+                                  setPickerOpen(true);
+                                }}
+                              />
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                flexDirection: 'row',
+                                flexWrap: 'nowrap',
+                                gap: 8,
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                whiteSpace: 'nowrap',
+                              }}
                             >
-                              <path d="M5 12h14" />
-                            </svg>
-                            ลบ
-                          </span>
-                        </button>
-                      ) : (
-                        <div></div>
-                      )}
+                              {showAdd ? (
+                                <button
+                                  type="button"
+                                  className="button"
+                                  style={{
+                                    flex: '0 0 auto',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  aria-label="เพิ่มบรรทัด"
+                                  disabled={addDisabled}
+                                  onClick={() => {
+                                    if (!canAdd) return;
+                                    setSegmentLines((prev) => {
+                                      const next = [...prev];
+                                      next.splice(idx + 1, 0, '');
+                                      return next.slice(0, 5);
+                                    });
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <svg
+                                      viewBox="0 0 24 24"
+                                      width="16"
+                                      height="16"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M12 5v14" />
+                                      <path d="M5 12h14" />
+                                    </svg>
+                                    เพิ่ม
+                                  </span>
+                                </button>
+                              ) : null}
+
+                              {showDelete ? (
+                                <button
+                                  type="button"
+                                  className="button button--danger"
+                                  style={{
+                                    flex: '0 0 auto',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  aria-label="ลบบรรทัด"
+                                  disabled={deleteDisabled}
+                                  onClick={() => {
+                                    setSegmentLines((prev) => {
+                                      const next = prev.filter(
+                                        (_, i) => i !== idx
+                                      );
+                                      return next.length ? next : [''];
+                                    });
+                                  }}
+                                >
+                                  -ลบ
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-
+                  </div>
                   <div
                     className="inline-pair"
                     style={{
@@ -1016,83 +998,72 @@ export default function CreateCustomer({
                     </div>
                     <div></div>
                   </div>
-
-                  {pickerOpen && (
+                </div>
+                {pickerOpen && (
+                  <div
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem',
+                      background: '#fafafa',
+                      margin: '0 20px',
+                    }}
+                  >
                     <div
                       style={{
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '0.5rem',
-                        padding: '0.5rem',
-                        background: '#fafafa',
-                        margin: '0 20px',
+                        display: 'flex',
+                        gap: '0.5rem',
+                        alignItems: 'center',
+                        marginBottom: '0.5rem',
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '0.5rem',
-                          alignItems: 'center',
-                          marginBottom: '0.5rem',
-                        }}
+                      <input
+                        value={pickerQuery}
+                        onChange={(e) => setPickerQuery(e.target.value)}
+                        className="input"
+                        placeholder="ค้นหาชื่อ"
+                        aria-label="ค้นหาชื่อ"
+                      />
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => setPickerOpen(false)}
                       >
-                        <input
-                          value={pickerQuery}
-                          onChange={(e) => setPickerQuery(e.target.value)}
-                          className="input"
-                          placeholder="ค้นหา HN หรือชื่อ"
-                          aria-label="ค้นหา HN หรือชื่อ"
-                        />
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => setPickerOpen(false)}
-                        >
-                          ปิด
-                        </button>
-                      </div>
-                      <div style={{ maxHeight: 220, overflow: 'auto' }}>
-                        {filteredHN.map((c) => (
-                          <button
-                            key={c.hn}
-                            type="button"
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '100px 1fr',
-                              gap: '0.5rem',
-                              width: '100%',
-                              textAlign: 'left',
-                              padding: '0.4rem 0.5rem',
-                              borderBottom: '1px solid #eee',
-                            }}
-                            onClick={() => {
-                              if (pickerTarget?.type === 'extraName') {
-                                setCond((prev) => {
-                                  const arr = Array.isArray(prev.extraNames)
-                                    ? [...prev.extraNames]
-                                    : [];
-                                  const idx = pickerTarget.index ?? 0;
-                                  arr[idx] = composeThaiName(c);
-                                  return { ...prev, extraNames: arr };
-                                });
-                              }
-                              setPickerOpen(false);
-                            }}
-                          >
-                            <span style={{ fontWeight: 600 }}>{c.hn}</span>
-                            <span>
-                              {composeThaiName(c)}
-                              <div
-                                style={{ fontSize: '0.85em', color: '#6b7280' }}
-                              >
-                                {composeThaiAddress(c)}
-                              </div>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+                        ปิด
+                      </button>
                     </div>
-                  )}
-                </div>
+                    <div style={{ maxHeight: 220, overflow: 'auto' }}>
+                      {filteredHN.map((c) => (
+                        <button
+                          key={c.hn}
+                          type="button"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '0.4rem 0.5rem',
+                            borderBottom: '1px solid #eee',
+                          }}
+                          onClick={() => {
+                            setSegmentLines((prev) =>
+                              prev.map((s, i) =>
+                                i === pickerLineIndex ? composeThaiName(c) : s
+                              )
+                            );
+                            setPickerOpen(false);
+                          }}
+                        >
+                          <div style={{ fontWeight: 600 }}>
+                            {composeThaiName(c)}
+                          </div>
+                          <div style={{ fontSize: '0.85em', color: '#6b7280' }}>
+                            {composeThaiAddress(c)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button
