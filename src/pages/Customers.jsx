@@ -34,6 +34,7 @@ const FULL_INDEX = new Map(
 
 function CustomerModal({ customer, onClose }) {
   if (!customer) return null;
+  const full = FULL_INDEX.get(customer.id);
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -47,6 +48,15 @@ function CustomerModal({ customer, onClose }) {
           <h3>รายละเอียดลูกค้า</h3>
         </div>
         <div className="modal-body">
+          <div style={{ display: 'block', marginBottom: '0.75rem' }}>
+            <div className="photo-box" aria-label="รูปภาพลูกค้า">
+              {full?.photoUrl ? (
+                <img src={full.photoUrl} alt="รูปภาพลูกค้า" />
+              ) : (
+                <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>
+              )}
+            </div>
+          </div>
           <div
             style={{
               display: 'grid',
@@ -82,6 +92,8 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
   const [selected, setSelected] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const el = stickyRef.current;
@@ -133,6 +145,36 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
       );
     });
   }, [query, base]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const end = start + pageSize;
+  const paged = filtered.slice(start, end);
+
+  const visiblePages = useMemo(() => {
+    const pages = [];
+    const total = totalPages;
+    const current = currentPage;
+    const maxSimple = 7;
+    if (total <= maxSimple) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    let s = Math.max(2, current - 2);
+    let e = Math.min(total - 1, current + 2);
+    if (s > 2) pages.push('…');
+    for (let i = s; i <= e; i++) pages.push(i);
+    if (e < total - 1) pages.push('…');
+    pages.push(total);
+    return pages;
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    // Reset to first page when query changes or pageSize updates
+    setPage(1);
+  }, [query, pageSize]);
 
   return (
     <section className="customers-page">
@@ -190,7 +232,7 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
+            {paged.map((c) => (
               <tr key={c.id} style={{ borderTop: '1px solid #eaeaea' }}>
                 <td style={{ padding: 8 }}>{c.id}</td>
                 <td style={{ padding: 8 }}>{c.name}</td>
@@ -230,8 +272,91 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
                 </td>
               </tr>
             ))}
+            {paged.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  style={{ padding: 12, textAlign: 'center', color: '#6b7280' }}
+                >
+                  ไม่พบข้อมูลในหน้านี้
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination controls */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginTop: 12,
+        }}
+        aria-label="ตัวแบ่งหน้า"
+      >
+        <div style={{ color: '#6b7280' }}>
+          แสดง {paged.length ? start + 1 : 0}-{Math.min(end, filtered.length)}{' '}
+          จาก {filtered.length} รายการ
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            ต่อหน้า
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value) || 10)}
+              className="select"
+              aria-label="จำนวนรายการต่อหน้า"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            aria-label="ก่อนหน้า"
+          >
+            ก่อนหน้า
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {visiblePages.map((p, idx) =>
+              p === '…' ? (
+                <span key={`ellipsis-${idx}`} style={{ padding: '0 6px' }}>
+                  …
+                </span>
+              ) : (
+                <button
+                  key={`page-${p}`}
+                  type="button"
+                  className="button"
+                  onClick={() => setPage(p)}
+                  disabled={p === currentPage}
+                  aria-current={p === currentPage ? 'page' : undefined}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          </div>
+          <button
+            type="button"
+            className="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            aria-label="ถัดไป"
+          >
+            ถัดไป
+          </button>
+        </div>
       </div>
       {selected && (
         <CustomerModal customer={selected} onClose={() => setSelected(null)} />

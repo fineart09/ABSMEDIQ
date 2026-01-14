@@ -582,6 +582,34 @@ p {
   font-size: 0.85rem;
   border: 1px solid transparent;
 }
+.badge--hn {
+  /* ~20% larger than base badge */
+  font-size: 1.02rem; /* 0.85rem * 1.2 */
+  padding: 0.24rem 0.66rem; /* scaled by 1.2 */
+}
+
+/* Customer photo preview box placed below HN */
+.photo-box {
+  width: min(280px, 60%);
+  height: 160px;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-box__placeholder {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
 .badge--active {
   color: #158990;
   background: rgba(21, 137, 144, 0.08);

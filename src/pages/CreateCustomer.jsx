@@ -13,6 +13,8 @@ export default function CreateCustomer({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pickerTarget, setPickerTarget] = useState(null);
+  const photoInputRef = useRef(null);
+  const [photoUrl, setPhotoUrl] = useState('');
   const [useCustomReceipt, setUseCustomReceipt] = useState(() =>
     Boolean(initialConditions?.receiptName || initialConditions?.receiptAddress)
   );
@@ -169,22 +171,14 @@ export default function CreateCustomer({
   const requiredFields = useMemo(
     () => [
       'prefixTh',
-      'prefixEn',
       'firstNameTh',
-      'firstNameEn',
       'lastNameTh',
-      'lastNameEn',
       'addressTh',
-      'addressEn',
       'provinceTh',
-      'provinceEn',
       'postalCode',
       'districtTh',
-      'districtEn',
       'subdistrictTh',
-      'subdistrictEn',
       'genderTh',
-      'genderEn',
       'phone',
     ],
     []
@@ -251,14 +245,7 @@ export default function CreateCustomer({
 
   const update = (field) => (e) => {
     const value = e.target.value;
-    setForm((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === 'provinceTh' && !prev.provinceEn) next.provinceEn = value;
-      if (field === 'districtTh' && !prev.districtEn) next.districtEn = value;
-      if (field === 'subdistrictTh' && !prev.subdistrictEn)
-        next.subdistrictEn = value;
-      return next;
-    });
+    setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((err) => ({ ...err, [field]: '' }));
   };
 
@@ -270,7 +257,6 @@ export default function CreateCustomer({
       districtTh: '',
       subdistrictTh: '',
       postalCode: '',
-      ...(prev.provinceEn ? {} : { provinceEn: value }),
     }));
     if (errors.provinceTh) setErrors((err) => ({ ...err, provinceTh: '' }));
   };
@@ -282,7 +268,6 @@ export default function CreateCustomer({
       districtTh: value,
       subdistrictTh: '',
       postalCode: '',
-      ...(prev.districtEn ? {} : { districtEn: value }),
     }));
     if (errors.districtTh) setErrors((err) => ({ ...err, districtTh: '' }));
   };
@@ -294,7 +279,6 @@ export default function CreateCustomer({
       ...prev,
       subdistrictTh: value,
       postalCode: zip || prev.postalCode,
-      ...(prev.subdistrictEn ? {} : { subdistrictEn: value }),
     }));
     if (errors.subdistrictTh)
       setErrors((err) => ({ ...err, subdistrictTh: '' }));
@@ -325,27 +309,19 @@ export default function CreateCustomer({
       status: form.status || 'ใช้งาน',
       name: {
         prefixTh: form.prefixTh,
-        prefixEn: form.prefixEn,
         firstTh: form.firstNameTh,
-        firstEn: form.firstNameEn,
         lastTh: form.lastNameTh,
-        lastEn: form.lastNameEn,
         nickname: form.nickname,
       },
       address: {
         addressTh: form.addressTh,
-        addressEn: form.addressEn,
         provinceTh: form.provinceTh,
-        provinceEn: form.provinceEn,
         postalCode: form.postalCode,
         districtTh: form.districtTh,
-        districtEn: form.districtEn,
         subdistrictTh: form.subdistrictTh,
-        subdistrictEn: form.subdistrictEn,
       },
       details: {
         genderTh: form.genderTh,
-        genderEn: form.genderEn,
         bloodGroup: form.bloodGroup,
         age: form.age,
         birthDate: form.birthDate,
@@ -357,6 +333,20 @@ export default function CreateCustomer({
 
     onSave?.(payload);
   };
+
+  const onPhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+  useEffect(() => {
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
   // removed mock filler
 
@@ -395,119 +385,72 @@ export default function CreateCustomer({
           disabled={isInactive}
           style={{ border: 0, margin: 0, padding: 0 }}
         >
-          {/* HN */}
-          <div className="form-grid">
-            <Field label="HN" htmlFor="cc-hn" error={errors.hn}>
-              <input
-                id="cc-hn"
-                value={form.hn}
-                onChange={update('hn')}
-                className="input"
-                readOnly
-              />
-            </Field>
-          </div>
+          {/* Removed HN field per request */}
 
           {/* Name */}
           <div className="form-section">
-            <h3 className="form-section__title">ชื่อ / Name</h3>
+            <div
+              className="form-section__title"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>ชื่อ / Name</h3>
+              {form?.hn ? (
+                <span className="badge badge--active badge--hn">
+                  HN: {form.hn}
+                </span>
+              ) : null}
+            </div>
             <div className="form-grid">
-              <Field label="คำนำหน้า TH / ENG" htmlFor="cc-prefix-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <input
-                      id="cc-prefix-th"
-                      value={form.prefixTh}
-                      onChange={update('prefixTh')}
-                      className="input"
-                    />
-                    {errors.prefixTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.prefixTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-prefix-en"
-                      value={form.prefixEn}
-                      onChange={update('prefixEn')}
-                      className="input"
-                    />
-                    {errors.prefixEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.prefixEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="คำนำหน้า" htmlFor="cc-prefix-th" required>
+                <div>
+                  <input
+                    id="cc-prefix-th"
+                    value={form.prefixTh}
+                    onChange={update('prefixTh')}
+                    className="input"
+                  />
+                  {errors.prefixTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.prefixTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
-              <Field label="ชื่อ TH / ENG" htmlFor="cc-first-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <input
-                      id="cc-first-th"
-                      value={form.firstNameTh}
-                      onChange={update('firstNameTh')}
-                      className="input"
-                    />
-                    {errors.firstNameTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.firstNameTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-first-en"
-                      value={form.firstNameEn}
-                      onChange={update('firstNameEn')}
-                      className="input"
-                    />
-                    {errors.firstNameEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.firstNameEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="ชื่อ" htmlFor="cc-first-th" required>
+                <div>
+                  <input
+                    id="cc-first-th"
+                    value={form.firstNameTh}
+                    onChange={update('firstNameTh')}
+                    className="input"
+                  />
+                  {errors.firstNameTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.firstNameTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
-              <Field label="นามสกุล TH / ENG" htmlFor="cc-last-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <input
-                      id="cc-last-th"
-                      value={form.lastNameTh}
-                      onChange={update('lastNameTh')}
-                      className="input"
-                    />
-                    {errors.lastNameTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.lastNameTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-last-en"
-                      value={form.lastNameEn}
-                      onChange={update('lastNameEn')}
-                      className="input"
-                    />
-                    {errors.lastNameEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.lastNameEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="นามสกุล" htmlFor="cc-last-th" required>
+                <div>
+                  <input
+                    id="cc-last-th"
+                    value={form.lastNameTh}
+                    onChange={update('lastNameTh')}
+                    className="input"
+                  />
+                  {errors.lastNameTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.lastNameTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
@@ -530,79 +473,43 @@ export default function CreateCustomer({
           <div className="form-section">
             <h3 className="form-section__title">ที่อยู่ / Address</h3>
             <div className="form-grid">
-              <Field label="ที่อยู่ TH / ENG" htmlFor="cc-addr-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <textarea
-                      id="cc-addr-th"
-                      value={form.addressTh}
-                      onChange={update('addressTh')}
-                      rows={2}
-                      className="textarea"
-                    />
-                    {errors.addressTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.addressTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <textarea
-                      id="cc-addr-en"
-                      value={form.addressEn}
-                      onChange={update('addressEn')}
-                      rows={2}
-                      className="textarea"
-                    />
-                    {errors.addressEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.addressEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="ที่อยู่" htmlFor="cc-addr-th" required>
+                <div>
+                  <textarea
+                    id="cc-addr-th"
+                    value={form.addressTh}
+                    onChange={update('addressTh')}
+                    rows={2}
+                    className="textarea"
+                  />
+                  {errors.addressTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.addressTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
-              <Field label="จังหวัด TH / ENG" htmlFor="cc-province-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <select
-                      id="cc-province-th"
-                      value={form.provinceTh}
-                      onChange={onProvinceSelect}
-                      className="select"
-                    >
-                      <option value="">-- เลือกจังหวัด --</option>
-                      {provinces.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.provinceTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.provinceTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-province-en"
-                      value={form.provinceEn}
-                      onChange={update('provinceEn')}
-                      className="input"
-                      placeholder="Province"
-                    />
-                    {errors.provinceEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.provinceEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="จังหวัด" htmlFor="cc-province-th" required>
+                <div>
+                  <select
+                    id="cc-province-th"
+                    value={form.provinceTh}
+                    onChange={onProvinceSelect}
+                    className="select"
+                  >
+                    <option value="">-- เลือกจังหวัด --</option>
+                    {provinces.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.provinceTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.provinceTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
@@ -646,87 +553,51 @@ export default function CreateCustomer({
                 </div>
               </Field>
 
-              <Field label="อำเภอ TH / ENG" htmlFor="cc-district-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <select
-                      id="cc-district-th"
-                      value={form.districtTh}
-                      onChange={onDistrictSelect}
-                      className="select"
-                      disabled={!form.provinceTh}
-                    >
-                      <option value="">-- เลือกอำเภอ --</option>
-                      {amphoes.map((a) => (
-                        <option key={a} value={a}>
-                          {a}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.districtTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.districtTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-district-en"
-                      value={form.districtEn}
-                      onChange={update('districtEn')}
-                      className="input"
-                      placeholder="District"
-                    />
-                    {errors.districtEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.districtEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="อำเภอ" htmlFor="cc-district-th" required>
+                <div>
+                  <select
+                    id="cc-district-th"
+                    value={form.districtTh}
+                    onChange={onDistrictSelect}
+                    className="select"
+                    disabled={!form.provinceTh}
+                  >
+                    <option value="">-- เลือกอำเภอ --</option>
+                    {amphoes.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.districtTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.districtTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
-              <Field label="ตำบล TH / ENG" htmlFor="cc-subdistrict-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <select
-                      id="cc-subdistrict-th"
-                      value={form.subdistrictTh}
-                      onChange={onSubdistrictSelect}
-                      className="select"
-                      disabled={!form.provinceTh || !form.districtTh}
-                    >
-                      <option value="">-- เลือกตำบล --</option>
-                      {districts.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.subdistrictTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.subdistrictTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-subdistrict-en"
-                      value={form.subdistrictEn}
-                      onChange={update('subdistrictEn')}
-                      className="input"
-                      placeholder="Subdistrict"
-                    />
-                    {errors.subdistrictEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.subdistrictEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="ตำบล" htmlFor="cc-subdistrict-th" required>
+                <div>
+                  <select
+                    id="cc-subdistrict-th"
+                    value={form.subdistrictTh}
+                    onChange={onSubdistrictSelect}
+                    className="select"
+                    disabled={!form.provinceTh || !form.districtTh}
+                  >
+                    <option value="">-- เลือกตำบล --</option>
+                    {districts.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.subdistrictTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.subdistrictTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
             </div>
@@ -736,36 +607,19 @@ export default function CreateCustomer({
           <div className="form-section">
             <h3 className="form-section__title">รายละเอียด / Description</h3>
             <div className="form-grid">
-              <Field label="เพศ TH / ENG" htmlFor="cc-gender-th" required>
-                <div className="inline-pair">
-                  <div>
-                    <span className="sub-label">TH</span>
-                    <input
-                      id="cc-gender-th"
-                      value={form.genderTh}
-                      onChange={update('genderTh')}
-                      className="input"
-                    />
-                    {errors.genderTh ? (
-                      <div role="alert" className="field-error">
-                        {errors.genderTh}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>
-                    <span className="sub-label">ENG</span>
-                    <input
-                      id="cc-gender-en"
-                      value={form.genderEn}
-                      onChange={update('genderEn')}
-                      className="input"
-                    />
-                    {errors.genderEn ? (
-                      <div role="alert" className="field-error">
-                        {errors.genderEn}
-                      </div>
-                    ) : null}
-                  </div>
+              <Field label="เพศ" htmlFor="cc-gender-th" required>
+                <div>
+                  <input
+                    id="cc-gender-th"
+                    value={form.genderTh}
+                    onChange={update('genderTh')}
+                    className="input"
+                  />
+                  {errors.genderTh ? (
+                    <div role="alert" className="field-error">
+                      {errors.genderTh}
+                    </div>
+                  ) : null}
                 </div>
               </Field>
 
@@ -804,13 +658,22 @@ export default function CreateCustomer({
                 </div>
               </Field>
               <Field label="วันเกิด" htmlFor="cc-birth">
-                <input
-                  id="cc-birth"
-                  type="date"
-                  value={form.birthDate}
-                  onChange={update('birthDate')}
-                  className="input"
-                />
+                <div
+                  className="inline-pair"
+                  style={{
+                    gridTemplateColumns: '1fr auto',
+                    alignItems: 'center',
+                  }}
+                >
+                  <input
+                    id="cc-birth"
+                    type="date"
+                    value={form.birthDate}
+                    onChange={update('birthDate')}
+                    className="input"
+                  />
+                  <div></div>
+                </div>
               </Field>
 
               <Field
@@ -844,6 +707,40 @@ export default function CreateCustomer({
                   className="textarea"
                 />
               </Field>
+              {/* Upload button and photo preview below Notes */}
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}
+              >
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={onPhotoChange}
+                />
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  อัพโหลดรูปลูกค้า
+                </button>
+                <div className="photo-box" aria-label="รูปภาพลูกค้า">
+                  {photoUrl ? (
+                    <img src={photoUrl} alt="รูปภาพลูกค้า" />
+                  ) : (
+                    <span className="photo-box__placeholder">
+                      ยังไม่มีรูปภาพ
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </fieldset>

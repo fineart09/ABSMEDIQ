@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function EditCustomer({
   customer,
@@ -7,24 +7,28 @@ export default function EditCustomer({
   onDefineConditions,
   title = 'แก้ไขรายชื่อลูกค้า',
 }) {
+  const photoInputRef = useRef(null);
+  const [photoUrl, setPhotoUrl] = useState('');
   const [form, setForm] = useState(() => ({
-    id: customer?.id || '',
+    hn: customer?.hn || '',
     name: customer?.name || '',
     phone: customer?.phone || '',
     email: customer?.email || '',
     status: customer?.status || 'Active',
     lastVisit: customer?.lastVisit || '',
+    notes: customer?.notes || '',
   }));
 
   useEffect(() => {
     if (!customer) return;
     setForm({
-      id: customer.id || '',
+      hn: customer.hn || '',
       name: customer.name || '',
       phone: customer.phone || '',
       email: customer.email || '',
       status: customer.status || 'Active',
       lastVisit: customer.lastVisit || '',
+      notes: customer.notes || '',
     });
   }, [customer]);
 
@@ -37,6 +41,21 @@ export default function EditCustomer({
     e.preventDefault();
     onSave?.(form);
   };
+
+  const onPhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
   if (!customer) {
     return (
@@ -61,39 +80,39 @@ export default function EditCustomer({
       </div>
       <form
         onSubmit={submit}
-        style={{ display: 'grid', gap: '0.75rem', maxWidth: 640 }}
+        className="form-card"
+        style={{ display: 'grid', gap: '1rem' }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '160px 1fr',
-            gap: '8px 12px',
-            alignItems: 'center',
-          }}
-        >
-          <label htmlFor="ec-id">HN</label>
-          <input
-            id="ec-id"
-            value={form.id}
-            onChange={update('id')}
-            readOnly
-            style={{ padding: '8px 10px' }}
-          />
-
+        <div className="form-grid">
           <label htmlFor="ec-name">ชื่อ</label>
-          <input
-            id="ec-name"
-            value={form.name}
-            onChange={update('name')}
-            style={{ padding: '8px 10px' }}
-          />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              justifyContent: 'space-between',
+            }}
+          >
+            <input
+              id="ec-name"
+              value={form.name}
+              onChange={update('name')}
+              className="input"
+              style={{ flex: 1 }}
+            />
+            <span className="badge badge--active badge--hn">
+              HN: {form.hn || '-'}
+            </span>
+          </div>
+
+          {/* Photo preview moved to be near upload button */}
 
           <label htmlFor="ec-phone">โทรศัพท์</label>
           <input
             id="ec-phone"
             value={form.phone}
             onChange={update('phone')}
-            style={{ padding: '8px 10px' }}
+            className="input"
           />
 
           <label htmlFor="ec-email">อีเมล</label>
@@ -101,7 +120,7 @@ export default function EditCustomer({
             id="ec-email"
             value={form.email}
             onChange={update('email')}
-            style={{ padding: '8px 10px' }}
+            className="input"
           />
 
           <label htmlFor="ec-status">สถานะ</label>
@@ -109,7 +128,7 @@ export default function EditCustomer({
             id="ec-status"
             value={form.status}
             onChange={update('status')}
-            style={{ padding: '8px 10px' }}
+            className="select"
           >
             {statuses.map((s) => (
               <option key={s} value={s}>
@@ -118,19 +137,59 @@ export default function EditCustomer({
             ))}
           </select>
 
-          <label htmlFor="ec-last">วันที่ลงทะเบียน</label>
+          <label htmlFor="ec-last">วันเกิด</label>
           <input
             id="ec-last"
             type="date"
             value={form.lastVisit}
             onChange={update('lastVisit')}
-            style={{ padding: '8px 10px' }}
+            className="input"
           />
+
+          <label htmlFor="ec-notes">หมายเหตุ</label>
+          <textarea
+            id="ec-notes"
+            value={form.notes}
+            onChange={update('notes')}
+            rows={2}
+            className="textarea"
+          />
+
+          {/* Upload button and photo preview below Notes */}
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}
+          >
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={onPhotoChange}
+            />
+            <button
+              type="button"
+              className="button"
+              onClick={() => photoInputRef.current?.click()}
+            >
+              อัพโหลดรูปลูกค้า
+            </button>
+            <div className="photo-box" aria-label="รูปภาพลูกค้า">
+              {photoUrl ? (
+                <img src={photoUrl} alt="รูปภาพลูกค้า" />
+              ) : (
+                <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div
-          style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}
-        >
+        <div className="form-actions">
           <button
             type="button"
             className="button"
