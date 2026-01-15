@@ -13,28 +13,25 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 @Entity
-@Table(name = "Customers") // ระบุชื่อ Table ให้ตรงกับใน SQL Server
+@Table(name = "CUSTOMER", schema = "dbo")
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Customer {
 
     @Id
-    @Column(name = "id", length = 50)
+    @Column(name = "HN", length = 50)
     private String id;
 
-    @Column(name = "name", nullable = false, length = 200)
+    @Column(name = "NAME_THAI", nullable = false, length = 200)
     private String name;
 
-    @Column(name = "phone", length = 20)
-    private String phone;
+    @Column(name = "MIDDLENAME_ENG", nullable = false, length = 200)
+    private String middleName;
 
-    @Column(name = "email", length = 100)
-    private String email;
+    @Column(name = "SURNAME_THAI", nullable = false, length = 200)
+    private String lastName;
 
-    @Column(name = "status", length = 20)
+    @Column(name = "CUS_STATUS", length = 20)
     private String status;
-
-    @Column(name = "last_visit")
-    private LocalDate lastVisit;
 }

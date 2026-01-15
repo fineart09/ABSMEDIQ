@@ -7,8 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+@CrossOrigin(origins = "http://localhost:5173") // หรือพอร์ตที่ React ของคุณรันอยู่
 @RestController
-@RequestMapping("/customer")
+@RequestMapping("/api/customers")
 public class CustomerController {
 
     private final CustomerService service;

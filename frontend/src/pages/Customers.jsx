@@ -6,45 +6,50 @@ export default function Customers() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
 
-  // 1. กระบวนการดึงข้อมูลจาก Java Backend
+  //call backend
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        // เรียกไปยัง @GetMapping ใน CustomerController
-        const response = await fetch('/customer');
+      const fetchData = async () => {
+        try {
+          setIsLoading(true);
 
-        if (!response.ok) {
-          throw new Error(`Server Error: ${response.status}`);
+          // เรียกผ่าน Proxy ที่ตั้งไว้ใน vite.config.js
+          const response = await fetch('/api/customers');
+
+          if (!response.ok) {
+            throw new Error(`Server Error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setCustomers(data);
+        } catch (err) {
+          console.error("Fetch Error:", err);
+          setError("ไม่สามารถเชื่อมต่อกับระบบ ABSMediQ ได้");
+        } finally {
+          setIsLoading(false);
         }
+      };
 
-        const data = await response.json();
-        setCustomers(data); // เก็บข้อมูล DTO เข้า State
-      } catch (err) {
-        console.error("Fetch Error:", err);
-        setError("ไม่สามารถเชื่อมต่อกับระบบ ABSMediQ ได้");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      fetchData(); // เรียกใช้งานฟังก์ชันที่สร้างไว้
+    }, []);
 
-    fetchData();
-  }, []);
-
-  // 2. ฟังก์ชันช่วยรวมชื่อ (Helper for Full Name)
+  //getFullName
   const getFullName = (c) => {
-    const title = c.title || '';
-    const mid = c.middleName ? ` ${c.middleName} ` : ' ';
-    return `${title}${c.firstName}${mid}${c.lastName}`;
+    const name = c.name || ''; // ตรงกับ NAME_THAI
+    const mid = c.middleName ? ` ${c.middleName} ` : ' '; // ตรงกับ MIDDLENAME_ENG
+    const last = c.lastName || ''; // ตรงกับ SURNAME_THAI
+    return `${name}${mid}${last}`;
   };
 
-  // 3. ระบบค้นหา (Search Logic)
+  //search logic
   const filteredItems = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return customers.filter(item =>
-      item.id.toLowerCase().includes(q) ||
-      getFullName(item).toLowerCase().includes(q)
-    );
+      const q = query.toLowerCase().trim();
+      return customers.filter(item => {
+        // บังคับเปลี่ยน id เป็น String และเช็คค่าว่าง
+        const idStr = item.id ? String(item.id).toLowerCase() : '';
+        const fullNameStr = getFullName(item).toLowerCase();
+
+        return idStr.includes(q) || fullNameStr.includes(q);
+      });
   }, [query, customers]);
 
   if (isLoading) return <div className="p-8">กำลังดึงข้อมูลจาก SQL Server...</div>;

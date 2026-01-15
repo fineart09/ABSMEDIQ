@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import logoUrl from '../logo.png';
+// import logoUrl from '../logo.png';
 import CreateAppointment from './pages/CreateAppointment.jsx';
 import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
@@ -323,7 +323,6 @@ export default function App() {
             onClick={() => handleNavItemClick('ตารางนัดหมาย')}
             aria-label="ไปที่ตารางนัดหมาย"
           >
-            <img src={logoUrl} alt="ABSMEDIQ logo" />
           </button>
 
           <div
