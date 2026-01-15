@@ -27,8 +27,14 @@ public class CustomerRepositoryImpl implements CustomerRepositoryCustom {
         String sql = null;
 
         try {
-            sql = "SELECT HN as id, NAME_THAI as name, MIDDLENAME_ENG as middleName, " +
-                    "SURNAME_THAI as lastName, CUS_STATUS as status FROM CUSTOMER";
+            sql = "SELECT HN as id, CONCAT_WS(' ', \n" +
+                    "        NULLIF(TRIM(NAME_THAI), ''), \n" +
+                    "        NULLIF(TRIM(MIDDLENAME_ENG), ''), \n" +
+                    "        NULLIF(TRIM(SURNAME_THAI), '')\n" +
+                    "    ) AS name, " +
+                    "PHONE as phone, " +
+                    "CUS_STATUS as status " +
+                    "FROM CUSTOMER";
 
             // ใช้ createNativeQuery และดึงผลลัพธ์เป็น Object[] มา Map เข้า DTO
             List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
@@ -41,9 +47,8 @@ public class CustomerRepositoryImpl implements CustomerRepositoryCustom {
             return rows.stream().map(row -> new CustomerSummaryDTO(
                     (Integer) row[0], // id (HN)
                     (String) row[1], // name
-                    (String) row[2], // middleName
-                    (String) row[3], // lastName
-                    (String) row[4]  // status
+                    (String) row[2], // phone
+                    (String) row[3]  // status
             )).collect(Collectors.toList());
 
         } catch (Exception e) {
