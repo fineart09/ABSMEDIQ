@@ -166,21 +166,7 @@ export default function CreateCustomer({
     setPickerOpen(false);
   }, [form]);
 
-  const requiredFields = useMemo(
-    () => [
-      'prefixTh',
-      'firstNameTh',
-      'lastNameTh',
-      'addressTh',
-      'provinceTh',
-      'postalCode',
-      'districtTh',
-      'subdistrictTh',
-      'genderTh',
-      'phone',
-    ],
-    []
-  );
+  const requiredFields = useMemo(() => ['prefixTh', 'firstNameTh'], []);
 
   const [errors, setErrors] = useState({});
 
@@ -434,7 +420,7 @@ export default function CreateCustomer({
                 ) : null}
               </Field>
 
-              <Field label="นามสกุล" htmlFor="cc-last-th" required>
+              <Field label="นามสกุล" htmlFor="cc-last-th">
                 <input
                   id="cc-last-th"
                   value={form.lastNameTh}
@@ -449,7 +435,7 @@ export default function CreateCustomer({
               </Field>
 
               <Field
-                label="ชื่อเล่น"
+                label="ชื่อเล่น/ผู้แนะนำ"
                 htmlFor="cc-nickname"
                 error={errors.nickname}
               >
@@ -467,7 +453,7 @@ export default function CreateCustomer({
           <div className="form-section">
             <h3 className="form-section__title">ที่อยู่</h3>
             <div className="form-grid">
-              <Field label="ที่อยู่" htmlFor="cc-addr-th" required>
+              <Field label="ที่อยู่" htmlFor="cc-addr-th">
                 <textarea
                   id="cc-addr-th"
                   value={form.addressTh}
@@ -482,7 +468,7 @@ export default function CreateCustomer({
                 ) : null}
               </Field>
 
-              <Field label="จังหวัด" htmlFor="cc-province-th" required>
+              <Field label="จังหวัด" htmlFor="cc-province-th">
                 <select
                   id="cc-province-th"
                   value={form.provinceTh}
@@ -506,7 +492,6 @@ export default function CreateCustomer({
               <Field
                 label="รหัสไปรษณีย์"
                 htmlFor="cc-postal"
-                required
                 error={errors.postalCode}
               >
                 <div className="input-with-icon">
@@ -543,7 +528,7 @@ export default function CreateCustomer({
                 </div>
               </Field>
 
-              <Field label="อำเภอ" htmlFor="cc-district-th" required>
+              <Field label="อำเภอ" htmlFor="cc-district-th">
                 <select
                   id="cc-district-th"
                   value={form.districtTh}
@@ -565,7 +550,7 @@ export default function CreateCustomer({
                 ) : null}
               </Field>
 
-              <Field label="ตำบล" htmlFor="cc-subdistrict-th" required>
+              <Field label="ตำบล" htmlFor="cc-subdistrict-th">
                 <select
                   id="cc-subdistrict-th"
                   value={form.subdistrictTh}
@@ -593,7 +578,7 @@ export default function CreateCustomer({
           <div className="form-section">
             <h3 className="form-section__title">รายละเอียด</h3>
             <div className="form-grid">
-              <Field label="เพศ" htmlFor="cc-gender-th" required>
+              <Field label="เพศ" htmlFor="cc-gender-th">
                 <input
                   id="cc-gender-th"
                   value={form.genderTh}
@@ -654,7 +639,6 @@ export default function CreateCustomer({
               <Field
                 label="เบอร์ติดต่อ"
                 htmlFor="cc-phone"
-                required
                 error={errors.phone}
               >
                 <input
@@ -795,7 +779,7 @@ export default function CreateCustomer({
                         className="select"
                       >
                         <option value="">-- เลือก --</option>
-                        <option value="ลูกค้าทั่วไป">ลูกค้าทั่วไป</option>
+                        <option value="ลูกค้าไม่ประจำ">ลูกค้าไม่ประจำ</option>
                         <option value="ลูกค้าประจำ">ลูกค้าประจำ</option>
                         <option value="ลูกค้าพิเศษ">ลูกค้าพิเศษ</option>
                         <option value="ลูกค้า VIP">ลูกค้า VIP</option>

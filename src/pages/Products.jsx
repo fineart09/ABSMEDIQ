@@ -1,65 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import MOCK_CUSTOMERS_FULL from '../mocks/customersFull';
-const displayName = (c) => {
-  const thPrefix = c?.name?.prefixTh || '';
-  const thFirst = c?.name?.firstTh || '';
-  const thLast = c?.name?.lastTh || '';
-  const enFirst = c?.name?.firstEn || '';
-  const enLast = c?.name?.lastEn || '';
-  const nick = c?.name?.nickname || '';
-  if (thPrefix || thFirst || thLast)
-    return `${thPrefix} ${thFirst} ${thLast}`.trim().replace(/\s+/g, ' ');
-  if (enFirst || enLast) return `${enFirst} ${enLast}`.trim();
-  if (nick) return nick;
-  return 'ไม่ระบุ';
+import MOCK_PRODUCTS_FULL from '../mocks/productsFull';
+
+const toCurrency = (n) => {
+  const value = Number(n);
+  if (!Number.isFinite(value)) return '-';
+  return value.toLocaleString('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 };
 
-const MOCK_CUSTOMERS = (
-  Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []
-).map((c, i) => {
-  const hn = c.hn || `HN${String(i + 1).padStart(3, '0')}`;
-  return {
-    id: hn,
-    hn,
-    name: displayName(c),
-    phone: c?.details?.phone || '',
-    email: c?.details?.email || '',
-    status: c.status || 'ใช้งาน',
-    lastVisit: c.lastVisit || '',
-    segment: c.segment || '',
-    discount: c.discount || '',
-  };
-});
+function ProductModal({ product, onClose }) {
+  if (!product) return null;
 
-const FULL_INDEX = new Map(
-  (Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []).map((c) => [
-    c.hn,
-    c,
-  ])
-);
-
-function CustomerModal({ customer, onClose }) {
-  if (!customer) return null;
-  const full = FULL_INDEX.get(customer.id);
-
-  const addressTh = [
-    full?.address?.addressTh,
-    full?.address?.subdistrictTh,
-    full?.address?.districtTh,
-    full?.address?.provinceTh,
-    full?.address?.postalCode,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const nickname = full?.name?.nickname || '';
-  const birthDate = full?.details?.birthDate || '';
-  const gender = full?.details?.genderTh || '';
-  const bloodGroup = full?.details?.bloodGroup || '';
-  const age = full?.details?.age || '';
-  const email = full?.details?.email || customer.email || '';
-  const notes = full?.details?.notes || '';
-  const registeredAt = full?.lastVisit || customer.lastVisit || '';
+  const price = Number(product.price);
+  const cost = Number(product.cost);
+  const margin =
+    Number.isFinite(price) && Number.isFinite(cost) ? price - cost : null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -67,22 +24,15 @@ function CustomerModal({ customer, onClose }) {
         className="modal modal--customer-details"
         role="dialog"
         aria-modal="true"
-        aria-label={`รายละเอียดลูกค้า ${customer.name} (${customer.id})`}
+        aria-label={`รายละเอียดสินค้า ${
+          product.nameTh || product.nameEn || ''
+        } (${product.code})`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>รายละเอียดลูกค้า</h3>
+          <h3>รายละเอียดสินค้า</h3>
         </div>
         <div className="modal-body">
-          <div style={{ display: 'block', marginBottom: '0.75rem' }}>
-            <div className="photo-box" aria-label="รูปภาพลูกค้า">
-              {full?.photoUrl ? (
-                <img src={full.photoUrl} alt="รูปภาพลูกค้า" />
-              ) : (
-                <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>
-              )}
-            </div>
-          </div>
           <div
             style={{
               display: 'grid',
@@ -90,28 +40,51 @@ function CustomerModal({ customer, onClose }) {
               gap: '8px 12px',
             }}
           >
-            <div>HN</div>
-            <div>{customer.id}</div>
-            <div>ชื่อ-นามสกุล</div>
-            <div>{customer.name}</div>
-            <div>ที่อยู่</div>
-            <div>{addressTh || '-'}</div>
-            <div>ชื่อเล่น</div>
-            <div>{nickname || '-'}</div>
-            <div>วันเกิด</div>
-            <div>{birthDate || '-'}</div>
-            <div>เพศ</div>
-            <div>{gender || '-'}</div>
-            <div>กรุ๊ปเลือด</div>
-            <div>{bloodGroup || '-'}</div>
-            <div>อายุ</div>
-            <div>{age || '-'}</div>
-            <div>อีเมล</div>
-            <div>{email || '-'}</div>
-            <div>หมายเหตุ</div>
-            <div>{notes || '-'}</div>
-            <div>วันที่ลงทะเบียน</div>
-            <div>{registeredAt || '-'}</div>
+            <div>รหัสสินค้า</div>
+            <div>
+              <span className="badge badge--hn">{product.code}</span>
+            </div>
+            <div>ชื่อสินค้า</div>
+            <div>{product.nameTh || '-'}</div>
+            <div>ชื่อสินค้า (EN)</div>
+            <div>{product.nameEn || '-'}</div>
+            <div>หมวดหมู่</div>
+            <div>{product.category || '-'}</div>
+            <div>หน่วย</div>
+            <div>{product.unit || '-'}</div>
+            <div>ราคา</div>
+            <div>{toCurrency(product.price)}</div>
+            <div>ต้นทุน</div>
+            <div>{toCurrency(product.cost)}</div>
+            <div>กำไรขั้นต้น</div>
+            <div>{margin === null ? '-' : toCurrency(margin)}</div>
+            <div>คงเหลือ</div>
+            <div>
+              {Number.isFinite(Number(product.stock)) ? product.stock : '-'}
+            </div>
+            <div>ผู้จำหน่าย</div>
+            <div>{product.supplier || '-'}</div>
+            <div>สถานะ</div>
+            <div>
+              <span
+                className={
+                  'badge badge--' +
+                  (product.status === 'ใช้งาน'
+                    ? 'active'
+                    : product.status === 'ไม่ใช้งาน'
+                    ? 'inactive'
+                    : String(product.status || '').toLowerCase())
+                }
+              >
+                {product.status || '-'}
+              </span>
+            </div>
+            <div>อัปเดตล่าสุด</div>
+            <div>{product.updatedAt || '-'}</div>
+            <div>รายละเอียด</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>
+              {product.description || '-'}
+            </div>
           </div>
         </div>
         <div className="modal-actions">
@@ -124,12 +97,41 @@ function CustomerModal({ customer, onClose }) {
   );
 }
 
-export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
+const normalizeProducts = (src) => {
+  const list = Array.isArray(src) ? src : [];
+  const usedCodes = new Set();
+  return list.map((p, i) => {
+    const rawCode = String(p?.code || '').trim();
+    let code = rawCode || `PRD${String(i + 1).padStart(3, '0')}`;
+    while (usedCodes.has(code)) {
+      code = `PRD${String(i + 1 + usedCodes.size).padStart(3, '0')}`;
+    }
+    usedCodes.add(code);
+
+    const stock = Number.isFinite(Number(p?.stock)) ? Number(p.stock) : 0;
+    const status = p?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+    return {
+      ...p,
+      code,
+      stock,
+      status,
+    };
+  });
+};
+
+export default function Products({
+  products,
+  onEdit,
+  onCreateNew,
+  onPurchase,
+  onReceiveStock,
+}) {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
   const [selected, setSelected] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [importMessage] = useState('');
 
   useEffect(() => {
     const el = stickyRef.current;
@@ -156,31 +158,32 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   }, []);
 
   const base = useMemo(() => {
-    const src = Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : [];
-    return src.map((c, i) => ({
-      id: c.hn || `HN${String(i + 1).padStart(3, '0')}`,
-      name: displayName(c),
-      phone: c?.details?.phone || '',
-      email: c?.details?.email || '',
-      status: statusOverrides?.[c.hn] || c.status || 'ใช้งาน',
-      lastVisit: c.lastVisit || '',
-      segment: c?.segment || c?.conditions?.segment || c?.cond?.segment || '',
-      discount: c.discount || '',
-    }));
-  }, [statusOverrides]);
+    const src = Array.isArray(products)
+      ? products
+      : Array.isArray(MOCK_PRODUCTS_FULL)
+      ? MOCK_PRODUCTS_FULL
+      : [];
+    return normalizeProducts(src);
+  }, [products]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return base;
-    return base.filter((c) => {
+    return base.filter((p) => {
       return (
-        c.name.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q) ||
-        String(c.segment || '')
+        String(p.code || '')
           .toLowerCase()
           .includes(q) ||
-        String(c.status || '')
+        String(p.nameTh || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.nameEn || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.category || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.status || '')
           .toLowerCase()
           .includes(q)
       );
@@ -213,12 +216,11 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   }, [currentPage, totalPages]);
 
   useEffect(() => {
-    // Reset to first page when query changes or pageSize updates
     setPage(1);
   }, [query, pageSize]);
 
   return (
-    <section className="customers-page">
+    <section className="products-page">
       <div className="page-sticky-header" ref={stickyRef}>
         <div
           style={{
@@ -229,14 +231,30 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
             marginBottom: 12,
           }}
         >
-          <h1 className="page-title">รายชื่อลูกค้า</h1>
-          <button
-            type="button"
-            className="button"
-            onClick={() => onCreateNew?.()}
-          >
-            สร้างรายชื่อลูกค้าใหม่
-          </button>
+          <h1 className="page-title">รายการสินค้า</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onPurchase?.()}
+            >
+              สั่งซื้อสินค้า
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onReceiveStock?.()}
+            >
+              นำสินค้าเข้า stock
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onCreateNew?.()}
+            >
+              สร้างรายการสินค้าใหม่
+            </button>
+          </div>
         </div>
 
         <div
@@ -244,8 +262,8 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
           style={{ display: 'flex', gap: 8, marginBottom: 12 }}
         >
           <input
-            aria-label="ค้นหารายชื่อลูกค้า"
-            placeholder="ค้นหาชื่อ / เบอร์ / กลุ่มลูกค้า / สถานะ / HN"
+            aria-label="ค้นหารายการสินค้า"
+            placeholder="ค้นหารหัส / ชื่อสินค้า / หมวดหมู่ / สถานะ"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1, padding: '8px 10px' }}
@@ -254,6 +272,12 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
             ล้าง
           </button>
         </div>
+
+        {importMessage ? (
+          <div style={{ color: '#6b7280', marginBottom: 12 }}>
+            {importMessage}
+          </div>
+        ) : null}
       </div>
 
       <div className="table-card" style={{ overflowX: 'auto' }}>
@@ -263,40 +287,53 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
         >
           <thead>
             <tr>
-              <th style={{ padding: 8 }}>HN</th>
-              <th style={{ padding: 8 }}>ชื่อ-นามสกุล</th>
-              <th style={{ padding: 8 }}>เบอร์โทร</th>
-              <th style={{ padding: 8 }}>กลุ่มลูกค้า</th>
+              <th style={{ padding: 8 }}>รหัส</th>
+              <th style={{ padding: 8 }}>ชื่อสินค้า</th>
+              <th style={{ padding: 8 }}>หมวดหมู่</th>
+              <th style={{ padding: 8 }}>ราคา</th>
+              <th style={{ padding: 8 }}>คงเหลือ</th>
               <th style={{ padding: 8 }}>สถานะ</th>
-              <th style={{ padding: 8 }}>ดูข้อมูล / แก้ไขข้อมูล</th>
+              <th style={{ padding: 8 }}>ดูข้อมูล / แก้ไข</th>
             </tr>
           </thead>
           <tbody>
-            {paged.map((c) => (
-              <tr key={c.id} style={{ borderTop: '1px solid #eaeaea' }}>
-                <td style={{ padding: 8 }}>{c.id}</td>
-                <td style={{ padding: 8 }}>{c.name}</td>
-                <td style={{ padding: 8 }}>{c.phone}</td>
-                <td style={{ padding: 8 }}>{c.segment || '-'}</td>
+            {paged.map((p) => (
+              <tr key={p.code} style={{ borderTop: '1px solid #eaeaea' }}>
+                <td style={{ padding: 8 }}>{p.code}</td>
+                <td style={{ padding: 8 }}>
+                  {p.nameTh || p.nameEn || '-'}
+                  {p.nameEn ? (
+                    <div
+                      style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}
+                    >
+                      {p.nameEn}
+                    </div>
+                  ) : null}
+                </td>
+                <td style={{ padding: 8 }}>{p.category || '-'}</td>
+                <td style={{ padding: 8 }}>{toCurrency(p.price)}</td>
+                <td style={{ padding: 8 }}>
+                  {Number.isFinite(Number(p.stock)) ? p.stock : '-'}
+                </td>
                 <td style={{ padding: 8 }}>
                   <span
                     className={
                       'badge badge--' +
-                      (c.status === 'ใช้งาน'
+                      (p.status === 'ใช้งาน'
                         ? 'active'
-                        : c.status === 'ไม่ใช้งาน'
+                        : p.status === 'ไม่ใช้งาน'
                         ? 'inactive'
-                        : String(c.status || '').toLowerCase())
+                        : String(p.status || '').toLowerCase())
                     }
                   >
-                    {c.status}
+                    {p.status}
                   </span>
                 </td>
                 <td style={{ padding: 8 }}>
                   <button
                     type="button"
                     className="button"
-                    onClick={() => setSelected(c)}
+                    onClick={() => setSelected(p)}
                     style={{ marginRight: 8 }}
                   >
                     ดูข้อมูล
@@ -304,9 +341,9 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => onEdit?.(FULL_INDEX.get(c.id) || c)}
+                    onClick={() => onEdit?.(p)}
                   >
-                    แก้ไขข้อมูล
+                    แก้ไขรายละเอียดสินค้า
                   </button>
                 </td>
               </tr>
@@ -314,7 +351,7 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
             {paged.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ padding: 12, textAlign: 'center', color: '#6b7280' }}
                 >
                   ไม่พบข้อมูลในหน้านี้
@@ -325,7 +362,6 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
         </table>
       </div>
 
-      {/* Pagination controls */}
       <div
         style={{
           display: 'flex',
@@ -397,8 +433,9 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
           </button>
         </div>
       </div>
+
       {selected && (
-        <CustomerModal customer={selected} onClose={() => setSelected(null)} />
+        <ProductModal product={selected} onClose={() => setSelected(null)} />
       )}
     </section>
   );

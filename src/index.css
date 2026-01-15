@@ -59,13 +59,60 @@ body,
 html {
   scroll-behavior: smooth;
 }
+
+:root {
+  --app-font: 'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto,
+    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  font-family: var(--app-font) !important;
+}
+
+/* Hard override: ensure all elements use the same font, even if a library overrides font-family */
+*,
+*::before,
+*::after {
+  font-family: var(--app-font) !important;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
-    'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, 'Apple Color Emoji',
-    'Segoe UI Emoji';
+  font-family: inherit;
   background: #ffffff;
   color: #111827;
+}
+
+body {
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--app-logo-url);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(784px, 95vw) auto;
+  opacity: 0.2;
+}
+
+body[data-page-key='customers']::before,
+body[data-page-key='products']::before {
+  opacity: 0.28;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
 }
 
 .container {
@@ -135,7 +182,7 @@ body {
   outline-offset: 2px;
 }
 .brand img {
-  height: 28px;
+  height: 56px;
   width: auto;
   display: block;
 }
@@ -241,6 +288,7 @@ body {
 .nav-dropdown__toggle {
   border-left: 1px solid rgba(21, 137, 144, 0.22);
 }
+
 .nav-dropdown__label:active,
 .nav-dropdown__toggle:active {
   transform: translateY(1px);
@@ -332,6 +380,16 @@ body {
   gap: 0.5rem;
   padding: 0.75rem 1rem 1rem;
 }
+
+/* Customer details popup: taller modal, no internal scrollbar */
+.modal--customer-details {
+  width: min(720px, 94%);
+  max-height: min(92vh, 900px);
+}
+.modal--customer-details .modal-body {
+  overflow: visible;
+  flex: 0 0 auto;
+}
 .nav a {
   color: #111827;
   text-decoration: none;
@@ -377,6 +435,21 @@ p {
   padding: 0.5rem 0;
   border-bottom: 1px solid #e5e7eb;
   min-height: 72px; /* match default used in thead sticky calc */
+}
+
+/* Allow logo watermark to be visible on heavy-table pages */
+.customers-page .page-sticky-header,
+.products-page .page-sticky-header {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+.customers-page .table-card,
+.products-page .table-card {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
 }
 
 /* Bootstrap-like navbar toggler + collapse (no Bootstrap dependency) */
@@ -482,7 +555,7 @@ p {
 
 @media (max-width: 420px) {
   .brand img {
-    height: 24px;
+    height: 56px;
   }
   .header .container {
     gap: 0.5rem;
@@ -514,6 +587,23 @@ p {
   outline-offset: 2px;
 }
 
+.button--solid {
+  background: #158990;
+  border-color: #158990;
+  color: #ffffff;
+}
+.button--solid:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.button--solid:active {
+  background: #0b5f59;
+  border-color: #0b5f59;
+}
+.button--solid:focus-visible {
+  outline-color: #0f766e;
+}
+
 /* Disabled button appearance */
 .button:disabled {
   background: #f3f4f6;
@@ -532,6 +622,26 @@ p {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: visible; /* allow sticky header shadow to render */
+}
+
+/* Watermark background for tables across all pages */
+.table-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+  background-image: var(--app-logo-url);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(588px, 77vw) auto;
+  opacity: 0.12;
+}
+
+.table-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Customers table styling */

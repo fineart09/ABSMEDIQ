@@ -668,7 +668,12 @@ function seeded(seed) {
 }
 
 function randomSegment(seed) {
-  const segments = ['ลูกค้าทั่วไป', 'ลูกค้าประจำ', 'ลูกค้าพิเศษ', 'ลูกค้า VIP'];
+  const segments = [
+    'ลูกค้าไม่ประจำ',
+    'ลูกค้าประจำ',
+    'ลูกค้าพิเศษ',
+    'ลูกค้า VIP',
+  ];
   const idx = Math.floor(seeded(seed) * segments.length);
   return segments[idx];
 }
