@@ -59,13 +59,60 @@ body,
 html {
   scroll-behavior: smooth;
 }
+
+:root {
+  --app-font: 'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto,
+    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  font-family: var(--app-font) !important;
+}
+
+/* Hard override: ensure all elements use the same font, even if a library overrides font-family */
+*,
+*::before,
+*::after {
+  font-family: var(--app-font) !important;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
-    'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, 'Apple Color Emoji',
-    'Segoe UI Emoji';
+  font-family: inherit;
   background: #ffffff;
   color: #111827;
+}
+
+body {
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--app-logo-url);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(784px, 95vw) auto;
+  opacity: 0.2;
+}
+
+body[data-page-key='customers']::before,
+body[data-page-key='products']::before {
+  opacity: 0.28;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
 }
 
 .container {
@@ -135,7 +182,7 @@ body {
   outline-offset: 2px;
 }
 .brand img {
-  height: 28px;
+  height: 56px;
   width: auto;
   display: block;
 }
@@ -241,6 +288,7 @@ body {
 .nav-dropdown__toggle {
   border-left: 1px solid rgba(21, 137, 144, 0.22);
 }
+
 .nav-dropdown__label:active,
 .nav-dropdown__toggle:active {
   transform: translateY(1px);
@@ -304,24 +352,43 @@ body {
 }
 .modal {
   width: min(520px, 92%);
+  max-height: min(80vh, 680px);
   background: #ffffff;
   color: #111827;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
 }
 .modal-header {
   padding: 1rem 1rem 0.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
+.modal-header h3 {
+  color: #158990; /* match page title brand color */
+}
 .modal-body {
   padding: 1rem;
+  overflow: auto; /* allow content to scroll within popup */
+  flex: 1;
+  min-height: 0; /* fix flexbox overflow issues */
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
   padding: 0.75rem 1rem 1rem;
+}
+
+/* Customer details popup: taller modal, no internal scrollbar */
+.modal--customer-details {
+  width: min(720px, 94%);
+  max-height: min(92vh, 900px);
+}
+.modal--customer-details .modal-body {
+  overflow: visible;
+  flex: 0 0 auto;
 }
 .nav a {
   color: #111827;
@@ -368,6 +435,21 @@ p {
   padding: 0.5rem 0;
   border-bottom: 1px solid #e5e7eb;
   min-height: 72px; /* match default used in thead sticky calc */
+}
+
+/* Allow logo watermark to be visible on heavy-table pages */
+.customers-page .page-sticky-header,
+.products-page .page-sticky-header {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+.customers-page .table-card,
+.products-page .table-card {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
 }
 
 /* Bootstrap-like navbar toggler + collapse (no Bootstrap dependency) */
@@ -473,7 +555,7 @@ p {
 
 @media (max-width: 420px) {
   .brand img {
-    height: 24px;
+    height: 56px;
   }
   .header .container {
     gap: 0.5rem;
@@ -505,6 +587,32 @@ p {
   outline-offset: 2px;
 }
 
+.button--solid {
+  background: #158990;
+  border-color: #158990;
+  color: #ffffff;
+}
+.button--solid:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.button--solid:active {
+  background: #0b5f59;
+  border-color: #0b5f59;
+}
+.button--solid:focus-visible {
+  outline-color: #0f766e;
+}
+
+/* Disabled button appearance */
+.button:disabled {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* Table card wrapper for nicer visuals */
 .table-card {
   width: 100%;
@@ -514,6 +622,26 @@ p {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: visible; /* allow sticky header shadow to render */
+}
+
+/* Watermark background for tables across all pages */
+.table-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+  background-image: var(--app-logo-url);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(588px, 77vw) auto;
+  opacity: 0.12;
+}
+
+.table-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Customers table styling */
@@ -564,6 +692,34 @@ p {
   font-size: 0.85rem;
   border: 1px solid transparent;
 }
+.badge--hn {
+  /* ~20% larger than base badge */
+  font-size: 1.02rem; /* 0.85rem * 1.2 */
+  padding: 0.24rem 0.66rem; /* scaled by 1.2 */
+}
+
+/* Customer photo preview box placed below HN */
+.photo-box {
+  width: min(280px, 60%);
+  height: 160px;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-box__placeholder {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
 .badge--active {
   color: #158990;
   background: rgba(21, 137, 144, 0.08);
@@ -578,4 +734,130 @@ p {
   color: #b91c1c;
   background: rgba(220, 38, 38, 0.08);
   border-color: rgba(220, 38, 38, 0.22);
+}
+
+/* ---- Form styles (Create/Edit Customer) ---- */
+.form-card {
+  width: min(900px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.25rem;
+}
+
+.form-section {
+  margin-top: 0.25rem;
+}
+.form-section__title {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.1rem;
+  color: #0f766e;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+label {
+  font-weight: 600;
+}
+
+.input,
+.select,
+.textarea {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: 2px solid rgba(21, 137, 144, 0.5);
+  outline-offset: 1px;
+}
+
+.field-error {
+  color: crimson;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Inline pair for TH/ENG inputs inside a single field cell */
+.inline-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.inline-pair > div {
+  display: flex;
+  flex-direction: column;
+}
+.sub-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .inline-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Icon inside input wrapper */
+.input-with-icon {
+  position: relative;
+}
+.input-with-icon .input,
+.input-with-icon .textarea,
+.input-with-icon .select {
+  padding-left: 34px;
+}
+.input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Receipt address and condition notes sizing inside popup */
+.receipt-address,
+.condition-notes {
+  width: 100%;
+  min-height: 68px; /* ~30% smaller than 96px */
+  max-height: 20vh; /* ~30% smaller than 28vh */
+  overflow: auto;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .receipt-address,
+  .condition-notes {
+    max-height: 15vh; /* ~30% smaller than 22vh on small screens */
+  }
 }

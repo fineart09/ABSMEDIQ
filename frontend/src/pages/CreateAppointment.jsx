@@ -48,7 +48,9 @@ export default function CreateAppointment({ onSubmit }) {
 
   return (
     <section className="create-appointment">
-      <h1>สร้างนัดหมาย</h1>
+      <div className="page-sticky-header">
+        <h1 className="page-title">สร้างนัดหมาย</h1>
+      </div>
       <form onSubmit={handleSubmit}>
         <div className="form-row">
           <label>

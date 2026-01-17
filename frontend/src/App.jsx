@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-// import logoUrl from '../logo.png';
+import logoUrl from '../logo.png';
 import CreateAppointment from './pages/CreateAppointment.jsx';
+import CreateCustomer from './pages/CreateCustomer.jsx';
+import CreateProduct from './pages/CreateProduct.jsx';
 import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
+import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
+import Products from './pages/Products.jsx';
+import PurchaseHome from './pages/PurchaseHome.jsx';
+import PurchaseOrders from './pages/PurchaseOrders.jsx';
+import ReceiveStock from './pages/ReceiveStock.jsx';
+import MOCK_PRODUCTS_FULL from './mocks/productsFull';
+import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -35,6 +44,16 @@ export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
+  const [products, setProducts] = useState(() =>
+    Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : []
+  );
+  const [purchaseOrders, setPurchaseOrders] = useState(() =>
+    Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
+  );
+  const [customerStatusOverrides, setCustomerStatusOverrides] = useState({});
+  const [customerConditions, setCustomerConditions] = useState({});
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -92,6 +111,23 @@ export default function App() {
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--app-logo-url',
+      `url(${logoUrl})`
+    );
+  }, [logoUrl]);
+
+  useEffect(() => {
+    const customersPages = new Set(['รายชื่อลูกค้า', 'ค้นหารายชื่อลูกค้า']);
+    const productsPages = new Set(['รายการสินค้า', 'ค้นหารายการสินค้า']);
+
+    if (customersPages.has(active)) document.body.dataset.pageKey = 'customers';
+    else if (productsPages.has(active))
+      document.body.dataset.pageKey = 'products';
+    else document.body.dataset.pageKey = 'default';
+  }, [active]);
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -176,33 +212,14 @@ export default function App() {
       ],
     },
     {
-      id: 'purchase',
-      label: 'สั่งซื้อสินค้า',
-      items: [
-        'รายการสั่งซื้อสินค้า',
-        'สร้างรายการสั่งซื้อ',
-        'แก้ไขรายการสั่งซื้อ',
-        'รับสินค้าจากรายการสั่งซื้อ',
-        'ใบเสนอราคา',
-      ],
-    },
-    {
       id: 'customers',
       label: 'รายชื่อลูกค้า',
-      items: [
-        'ค้นหารายชื่อลูกค้า',
-        'สร้างรายชื่อลูกค้าใหม่',
-        'กำหนดเงื่อนไขสถานะลูกค้า',
-      ],
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'products',
       label: 'รายการสินค้า',
-      items: [
-        'ค้นหารายการสินค้า',
-        'สร้างรายการสินค้าใหม่',
-        'แก้ไขรายละเอียดสินค้า',
-      ],
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'services',
@@ -270,21 +287,277 @@ export default function App() {
         return (
           <Customers
             onEdit={(customer) => {
-              setEditingCustomer(customer);
+              const override = customerStatusOverrides[customer.hn];
+              setEditingCustomer(
+                override ? { ...customer, status: override } : customer
+              );
               setActive('แก้ไขรายชื่อลูกค้า');
+            }}
+            onCreateNew={() => {
+              setActive('สร้างรายชื่อลูกค้าใหม่');
+            }}
+            statusOverrides={customerStatusOverrides}
+          />
+        );
+      case 'สร้างรายชื่อลูกค้าใหม่':
+        return (
+          <CreateCustomer
+            onCancel={() => setActive('รายชื่อลูกค้า')}
+            onSave={(data) => {
+              console.log('สร้างลูกค้าใหม่:', data);
+              setActive('รายชื่อลูกค้า');
+              openModal('สร้างรายชื่อลูกค้าสำเร็จ');
             }}
           />
         );
       case 'แก้ไขรายชื่อลูกค้า':
         return (
-          <EditCustomer
-            customer={editingCustomer}
+          <CreateCustomer
+            title="แก้ไขรายชื่อลูกค้า"
+            initial={editingCustomer}
+            initialConditions={
+              editingCustomer
+                ? customerConditions[editingCustomer.hn]
+                : undefined
+            }
             onCancel={() => setActive('รายชื่อลูกค้า')}
             onSave={(data) => {
               console.log('แก้ไขลูกค้า:', data);
+              if (data?.hn && data?.status) {
+                setCustomerStatusOverrides((prev) => ({
+                  ...prev,
+                  [data.hn]: data.status,
+                }));
+              }
               setEditingCustomer(null);
               setActive('รายชื่อลูกค้า');
               openModal('บันทึกข้อมูลลูกค้าสำเร็จ');
+            }}
+            onDefineConditions={(cond) => {
+              if (!cond?.customer?.hn) {
+                openModal('ไม่พบ HN ของลูกค้า');
+                return;
+              }
+              setCustomerConditions((prev) => ({
+                ...prev,
+                [cond.customer.hn]: {
+                  segment: cond.segment || '',
+                  segmentText: cond.segmentText || '',
+                  discount: cond.discount ?? '',
+                  notes: cond.notes || '',
+                  receiptName: cond.receiptName || '',
+                  receiptAddress: cond.receiptAddress || '',
+                },
+              }));
+              openModal('บันทึกเงื่อนไขลูกค้าสำเร็จ');
+            }}
+          />
+        );
+      case 'สั่งซื้อสินค้า':
+        return (
+          <PurchaseHome
+            onNavigate={(page) => {
+              if (page === 'สร้างรายการสั่งซื้อ') {
+                setEditingPurchaseOrder(null);
+              }
+              setActive(page);
+            }}
+          />
+        );
+      case 'รายการสั่งซื้อสินค้า':
+        return (
+          <PurchaseOrders
+            purchaseOrders={purchaseOrders}
+            onCreateNew={() => {
+              setEditingPurchaseOrder(null);
+              setActive('สร้างรายการสั่งซื้อ');
+            }}
+            onEdit={(order) => {
+              setEditingPurchaseOrder(order);
+              setActive('แก้ไขรายการสั่งซื้อ');
+            }}
+          />
+        );
+      case 'สร้างรายการสั่งซื้อ':
+        return (
+          <CreatePurchaseOrder
+            products={products}
+            onCancel={() => setActive('รายการสั่งซื้อสินค้า')}
+            onSave={(data) => {
+              console.log('สร้างรายการสั่งซื้อ:', data);
+              if (data?.id) {
+                setPurchaseOrders((prev) => {
+                  const byId = new Map(
+                    (Array.isArray(prev) ? prev : []).map((o) => [
+                      String(o?.id || o?.poNo || ''),
+                      o,
+                    ])
+                  );
+                  byId.set(String(data.id), data);
+                  return Array.from(byId.values());
+                });
+              }
+              setActive('รายการสั่งซื้อสินค้า');
+              openModal('สร้างรายการสั่งซื้อสำเร็จ');
+            }}
+          />
+        );
+      case 'แก้ไขรายการสั่งซื้อ':
+        if (!editingPurchaseOrder) {
+          return (
+            <>
+              <h1>แก้ไขรายการสั่งซื้อ</h1>
+              <p>กรุณาเลือกรายการจากหน้า “รายการสั่งซื้อสินค้า” ก่อน</p>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setActive('รายการสั่งซื้อสินค้า')}
+              >
+                ไปที่รายการสั่งซื้อสินค้า
+              </button>
+            </>
+          );
+        }
+        return (
+          <CreatePurchaseOrder
+            title="แก้ไขรายการสั่งซื้อ"
+            initial={editingPurchaseOrder}
+            products={products}
+            onCancel={() => {
+              setEditingPurchaseOrder(null);
+              setActive('รายการสั่งซื้อสินค้า');
+            }}
+            onSave={(data) => {
+              console.log('แก้ไขรายการสั่งซื้อ:', data);
+              if (data?.id) {
+                setPurchaseOrders((prev) => {
+                  const byId = new Map(
+                    (Array.isArray(prev) ? prev : []).map((o) => [
+                      String(o?.id || o?.poNo || ''),
+                      o,
+                    ])
+                  );
+                  const existing = byId.get(String(data.id));
+                  byId.set(
+                    String(data.id),
+                    existing ? { ...existing, ...data } : data
+                  );
+                  return Array.from(byId.values());
+                });
+              }
+              setEditingPurchaseOrder(null);
+              setActive('รายการสั่งซื้อสินค้า');
+              openModal('บันทึกรายการสั่งซื้อสำเร็จ');
+            }}
+          />
+        );
+      case 'รายการสินค้า':
+      case 'ค้นหารายการสินค้า':
+        return (
+          <Products
+            products={products}
+            onEdit={(product) => {
+              setEditingProduct(product);
+              setActive('แก้ไขรายละเอียดสินค้า');
+            }}
+            onCreateNew={() => {
+              setEditingProduct(null);
+              setActive('สร้างรายการสินค้าใหม่');
+            }}
+            onPurchase={() => {
+              setActive('สั่งซื้อสินค้า');
+            }}
+            onReceiveStock={() => {
+              setActive('รับสินค้าเข้า stock');
+            }}
+          />
+        );
+      case 'รับสินค้าเข้า stock':
+        return (
+          <ReceiveStock
+            existingProducts={products}
+            onCancel={() => setActive('รายการสินค้า')}
+            onImported={(incoming) => {
+              const list = Array.isArray(incoming) ? incoming : [];
+              const prevByCode = new Map(
+                (Array.isArray(products) ? products : []).map((p) => [
+                  String(p?.code || ''),
+                  p,
+                ])
+              );
+
+              let added = 0;
+              let updated = 0;
+              list.forEach((p) => {
+                const code = String(p?.code || '').trim();
+                if (!code) return;
+                if (prevByCode.has(code)) updated += 1;
+                else added += 1;
+                const prev = prevByCode.get(code);
+                prevByCode.set(code, prev ? { ...prev, ...p } : p);
+              });
+
+              setProducts(Array.from(prevByCode.values()));
+              setActive('รายการสินค้า');
+              openModal(
+                `นำสินค้าเข้า stock สำเร็จ (เพิ่ม ${added}, อัปเดต ${updated})`
+              );
+            }}
+          />
+        );
+      case 'สร้างรายการสินค้าใหม่':
+        return (
+          <CreateProduct
+            onCancel={() => setActive('รายการสินค้า')}
+            onSave={(data) => {
+              console.log('สร้างสินค้าใหม่:', data);
+              if (data?.code) {
+                setProducts((prev) => {
+                  const byCode = new Map(
+                    (Array.isArray(prev) ? prev : []).map((p) => [
+                      String(p?.code || ''),
+                      p,
+                    ])
+                  );
+                  byCode.set(String(data.code), data);
+                  return Array.from(byCode.values());
+                });
+              }
+              setActive('รายการสินค้า');
+              openModal('สร้างรายการสินค้าใหม่สำเร็จ');
+            }}
+          />
+        );
+      case 'แก้ไขรายละเอียดสินค้า':
+        return (
+          <CreateProduct
+            title="แก้ไขรายละเอียดสินค้า"
+            initial={editingProduct}
+            onCancel={() => {
+              setEditingProduct(null);
+              setActive('รายการสินค้า');
+            }}
+            onSave={(data) => {
+              console.log('แก้ไขสินค้า:', data);
+              if (data?.code) {
+                setProducts((prev) => {
+                  const byCode = new Map(
+                    (Array.isArray(prev) ? prev : []).map((p) => [
+                      String(p?.code || ''),
+                      p,
+                    ])
+                  );
+                  const existing = byCode.get(String(data.code));
+                  byCode.set(
+                    String(data.code),
+                    existing ? { ...existing, ...data } : data
+                  );
+                  return Array.from(byCode.values());
+                });
+              }
+              setEditingProduct(null);
+              setActive('รายการสินค้า');
+              openModal('บันทึกข้อมูลสินค้าสำเร็จ');
             }}
           />
         );
@@ -323,6 +596,7 @@ export default function App() {
             onClick={() => handleNavItemClick('ตารางนัดหมาย')}
             aria-label="ไปที่ตารางนัดหมาย"
           >
+            <img src={logoUrl} alt="ABSMEDIQ logo" />
           </button>
 
           <div
