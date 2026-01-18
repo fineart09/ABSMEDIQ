@@ -1,203 +1,253 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+/**
+ * EditCustomer Component
+ * @description เวอร์ชันรวม Logic Backend เข้ากับ UI ล่าสุด (v1)
+ * @param {Object} customer - ข้อมูลเบื้องต้นที่ส่งมาจาก List/Table
+ */
 export default function EditCustomer({
-  customer, // รับกุญแจหลัก (เช่น HN หรือ ID) มาจากหน้า List
+  customer,
   onCancel,
   onSave,
   onDefineConditions,
   title = 'แก้ไขรายชื่อลูกค้า',
 }) {
   const photoInputRef = useRef(null);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const originalPhotoUrlRef = useRef('');
+  const originalPhotoUrlRef = useRef(customer?.photoUrl || '');
 
-  // --- [เพิ่มใหม่] States สำหรับการดึงข้อมูลจาก Backend ---
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(null);
+  // 1. Initialize State จาก Props (เพื่อความรวดเร็วในการแสดงผล)
+  const [photoUrl, setPhotoUrl] = useState(() => customer?.photoUrl || '');
   const [enableExtraNames, setEnableExtraNames] = useState(false);
   const [extraNames, setExtraNames] = useState([]);
+  const [form, setForm] = useState(() => ({
+    hn: customer?.hn || customer?.id || '',
+    name: customer?.name || '',
+    phone: customer?.phone || '',
+    email: customer?.email || '',
+    status: customer?.status || 'ใช้งาน',
+    lastVisit: customer?.lastVisit || '',
+    notes: customer?.notes || '',
+  }));
 
-  // --- [เพิ่มใหม่] Form State เริ่มต้น ---
-  const [form, setForm] = useState({
-    hn: '',
-    name: '',
-    phone: '',
-    email: '',
-    status: 'ใช้งาน',
-    lastVisit: '', // ใช้เป็นวันเกิดใน UI นี้
-    notes: '',
-  });
-
-  // Helper สำหรับแปลงสถานะ (ตามที่เราตกลงกันไว้)
-  const mapStatusToUI = (status) => {
-    const s = String(status || '').toLowerCase();
-    if (s === 'active') return 'ใช้งาน';
-    if (s === 'deactive' || s === 'inactive') return 'ไม่ใช้งาน';
-    return 'ใช้งาน';
-  };
-
-  // --- [จุดสำคัญ] useEffect สำหรับเรียก Backend ก่อนเริ่มแก้ไข ---
+  // 2. Data Synchronization (ดึงข้อมูลล่าสุดจาก Backend)
   useEffect(() => {
-    const fetchFullCustomerData = async () => {
-      // ตรวจสอบว่ามีกุญแจหลัก (HN) ส่งมาหรือไม่
-      const targetId = customer?.hn || customer?.id;
-      if (!targetId) {
-        setIsLoading(false);
-        return;
-      }
+    const targetId = customer?.hn || customer?.id;
+    if (!targetId) return;
 
+    const fetchCustomerData = async () => {
       try {
-        setIsLoading(true);
-        setFetchError(null);
-
-        // เรียก API ดึงข้อมูลรายบุคคลจาก Java Spring Boot
+        // ในระบบจริงควรใช้ Instance ของ Axios หรือ Wrapper Fetch ที่จัดการเรื่อง Auth Token
         const response = await fetch(`/api/customers/${targetId}`);
-        if (!response.ok) throw new Error(`ไม่สามารถโหลดข้อมูลลูกค้าได้ (Status: ${response.status})`);
+        if (!response.ok) throw new Error('Failed to fetch customer data');
 
-        const fullData = await response.json();
+        const data = await response.json();
 
-        // --- [การ Mapping ข้อมูลหลังบ้านเข้าสู่ Form] ---
+        // Mapping Data: แปลง Format จาก Backend เป็น Format ที่ UI เข้าใจ
         setForm({
-          hn: fullData.hn || fullData.id || '',
-          name: fullData.name || '',
-          phone: fullData.phone || fullData.details?.phone || '',
-          email: fullData.email || fullData.details?.email || '',
-          status: mapStatusToUI(fullData.status),
-          // สำคัญ: type="date" ต้องการรูปแบบ yyyy-MM-dd เท่านั้น
-          lastVisit: fullData.birthDate || fullData.lastVisit || '',
-          notes: fullData.notes || fullData.details?.notes || '',
+          hn: data.hn || data.id || '',
+          name: data.name || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          status: data.status === 'Active' ? 'ใช้งาน' :
+                  data.status === 'Deactive' ? 'ไม่ใช้งาน' : (data.status || 'ใช้งาน'),
+          lastVisit: data.birthDate || '', // สมมติว่าหลังบ้านส่งเป็น birthDate
+          notes: data.notes || '',
         });
 
-        // จัดการรูปภาพ
-        setPhotoUrl(fullData.photoUrl || '');
-        originalPhotoUrlRef.current = fullData.photoUrl || '';
-
-        // จัดการรายชื่อเพิ่มเติม
-        if (Array.isArray(fullData.otherNames) && fullData.otherNames.length > 0) {
-          setEnableExtraNames(true);
-          setExtraNames(fullData.otherNames);
+        if (data.photoUrl) {
+          setPhotoUrl(data.photoUrl);
+          originalPhotoUrlRef.current = data.photoUrl;
         }
 
-      } catch (err) {
-        console.error("Fetch Detail Error:", err);
-        setFetchError(err.message);
-      } finally {
-        setIsLoading(false);
+        if (Array.isArray(data.otherNames) && data.otherNames.length > 0) {
+          setEnableExtraNames(true);
+          setExtraNames(data.otherNames);
+        }
+      } catch (error) {
+        console.error('[EditCustomer] Fetch Error:', error);
+        // สามารถเพิ่มการแจ้งเตือน Error Toast ได้ที่นี่
       }
     };
 
-    fetchFullCustomerData();
+    fetchCustomerData();
   }, [customer]);
 
   const statuses = useMemo(() => ['ใช้งาน', 'ไม่ใช้งาน', 'ค้างชำระ'], []);
 
-  const update = (field) => (e) =>
-    setForm((f) => ({ ...f, [field]: e.target.value }));
+  const updateField = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
-  // จังหวะบันทึก: แปลงค่ากลับไปเป็น Format Backend
-  const submit = (e) => {
+  // 3. Handle Submit with Data Mapping (ขาออก)
+  const handleSubmit = (e) => {
     e.preventDefault();
-    onSave?.({
+
+    // แปลงข้อมูลกลับเป็น Format ที่ Backend ต้องการก่อนส่งออก
+    const payload = {
       ...form,
-      status: form.status === 'ใช้งาน' ? 'Active' : 'Deactive', // แปลงกลับไปให้ SQL Server
+      status: form.status === 'ใช้งาน' ? 'Active' :
+              form.status === 'ไม่ใช้งาน' ? 'Deactive' : form.status,
       photoUrl: photoUrl || '',
       otherNames: enableExtraNames ? extraNames : [],
-    });
+    };
+
+    onSave?.(payload);
   };
 
-  // --- UI Handling Logic ---
+  // Photo Handlers
   const onPhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoUrl(URL.createObjectURL(file));
+    setPhotoUrl((prev) => {
+      if (prev?.startsWith?.('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   };
 
   const clearOrResetPhoto = () => {
-    setPhotoUrl(originalPhotoUrlRef.current || '');
+    const original = originalPhotoUrlRef.current || '';
+    setPhotoUrl((prev) => {
+      if (prev?.startsWith?.('blob:')) URL.revokeObjectURL(prev);
+      return original;
+    });
     if (photoInputRef.current) photoInputRef.current.value = '';
   };
 
-  // Loading & Error Views
-  if (isLoading) return <div className="p-10">กำลังโหลดข้อมูลล่าสุดจาก SQL Server...</div>;
-  if (fetchError) return <div className="p-10 text-red-500">ข้อผิดพลาด: {fetchError} <button onClick={onCancel}>กลับ</button></div>;
-  if (!customer && !isLoading) return <p className="p-10">ไม่พบรหัสลูกค้าที่ต้องการแก้ไข</p>;
+  // Cleanup Blob URL เมื่อ Component Unmount
+  useEffect(() => {
+    return () => {
+      if (photoUrl?.startsWith?.('blob:')) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
+
+  if (!customer) {
+    return (
+      <section>
+        <div className="page-sticky-header"><h1 className="page-title">{title}</h1></div>
+        <p>ไม่พบข้อมูลลูกค้าที่ต้องการแก้ไข</p>
+        <button type="button" className="button" onClick={onCancel}>กลับ</button>
+      </section>
+    );
+  }
 
   return (
     <section>
       <div className="page-sticky-header">
         <h1 className="page-title">{title}</h1>
       </div>
-      <form onSubmit={submit} className="form-card" style={{ display: 'grid', gap: '1rem' }}>
+      <form onSubmit={handleSubmit} className="form-card" style={{ display: 'grid', gap: '1rem' }}>
         <div className="form-grid">
+          {/* Section: Name & HN */}
           <label htmlFor="ec-name">ชื่อ</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
-            <input id="ec-name" value={form.name} onChange={update('name')} className="input" style={{ flex: 1 }} />
-            <span className="badge badge--active badge--hn">HN: {form.hn || '-'}</span>
+            <input
+              id="ec-name"
+              value={form.name}
+              onChange={updateField('name')}
+              className="input"
+              style={{ flex: 1 }}
+              required
+            />
+            <span className="badge badge--active badge--hn">
+              HN: {form.hn || '-'}
+            </span>
           </div>
 
+          {/* Section: Extra Names (Dynamic Inputs) */}
           <label htmlFor="ec-extra-names">เพิ่มรายชื่อ</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input id="ec-extra-names" type="checkbox" checked={enableExtraNames} onChange={(e) => setEnableExtraNames(e.target.checked)} />
+            <input
+              id="ec-extra-names"
+              type="checkbox"
+              checked={enableExtraNames}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setEnableExtraNames(checked);
+                if (checked && extraNames.length === 0) setExtraNames(['']);
+                if (!checked) setExtraNames([]);
+              }}
+            />
             <span>เปิดการเพิ่มรายชื่อ</span>
           </div>
 
-          {/* รายชื่อเพิ่มเติม (Dynamic Inputs) */}
           {enableExtraNames && (
             <div style={{ gridColumn: '1 / -1', display: 'grid', gap: '0.5rem' }}>
               {extraNames.map((val, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '0.5rem' }}>
+                <div key={`extra-name-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input
+                    className="input"
+                    style={{ flex: 1 }}
+                    placeholder={`ชื่อ (เพิ่มเติม) บรรทัดที่ ${idx + 1}`}
                     value={val}
                     onChange={(e) => {
                       const next = [...extraNames];
                       next[idx] = e.target.value;
                       setExtraNames(next);
                     }}
-                    className="input"
-                    style={{ flex: 1 }}
                   />
-                  {idx === 0 ? (
-                    <button type="button" className="button" onClick={() => setExtraNames([...extraNames, ''])}>+</button>
-                  ) : (
-                    <button type="button" className="button button--danger" onClick={() => setExtraNames(extraNames.filter((_, i) => i !== idx))}>-</button>
+                  {idx === 0 && extraNames.length < 5 && (
+                    <button type="button" className="button" onClick={() => setExtraNames([...extraNames, ''])}>
+                      +เพิ่ม
+                    </button>
+                  )}
+                  {idx > 0 && (
+                    <button type="button" className="button button--danger" onClick={() => setExtraNames(extraNames.filter((_, i) => i !== idx))}>
+                      -ลบ
+                    </button>
                   )}
                 </div>
               ))}
             </div>
           )}
 
+          {/* Section: Standard Fields */}
           <label htmlFor="ec-phone">โทรศัพท์</label>
-          <input id="ec-phone" value={form.phone} onChange={update('phone')} className="input" />
+          <input id="ec-phone" value={form.phone} onChange={updateField('phone')} className="input" />
 
           <label htmlFor="ec-email">อีเมล</label>
-          <input id="ec-email" value={form.email} onChange={update('email')} className="input" />
+          <input id="ec-email" type="email" value={form.email} onChange={updateField('email')} className="input" />
 
           <label htmlFor="ec-status">สถานะ</label>
-          <select id="ec-status" value={form.status} onChange={update('status')} className="select">
+          <select id="ec-status" value={form.status} onChange={updateField('status')} className="select">
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
 
           <label htmlFor="ec-last">วันเกิด</label>
-          <input id="ec-last" type="date" value={form.lastVisit} onChange={update('lastVisit')} className="input" />
+          <input id="ec-last" type="date" value={form.lastVisit} onChange={updateField('lastVisit')} className="input" />
 
           <label htmlFor="ec-notes">หมายเหตุ</label>
-          <textarea id="ec-notes" value={form.notes} onChange={update('notes')} rows={2} className="textarea" />
+          <textarea id="ec-notes" value={form.notes} onChange={updateField('notes')} rows={2} className="textarea" />
 
-          {/* Photo Management */}
-          <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button type="button" className="button" onClick={() => photoInputRef.current?.click()}>อัพโหลดรูปลูกค้า</button>
+          {/* Section: Photo Upload */}
+          <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
             <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onPhotoChange} />
-            <div className="photo-box">
-              {photoUrl ? <img src={photoUrl} alt="Preview" /> : <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>}
+            <button type="button" className="button" onClick={() => photoInputRef.current?.click()}>
+              อัพโหลดรูปลูกค้า
+            </button>
+            <div className="photo-box" aria-label="รูปภาพลูกค้า">
+              {photoUrl ? <img src={photoUrl} alt="รูปภาพลูกค้า" /> : <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>}
             </div>
-            <button type="button" className="button button--danger" onClick={clearOrResetPhoto} disabled={!photoUrl}>ลบรูป/รีเซ็ตรูป</button>
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={clearOrResetPhoto}
+              disabled={!photoUrl && !originalPhotoUrlRef.current}
+            >
+              ลบรูป/รีเซ็ตรูป
+            </button>
           </div>
         </div>
 
+        {/* Footer Actions */}
         <div className="form-actions">
-          <button type="button" className="button" onClick={() => onDefineConditions?.(form)}>กำหนดเงื่อนไขลูกค้า</button>
-          <button type="button" className="button" onClick={onCancel}>ยกเลิก</button>
-          <button type="submit" className="button">บันทึก</button>
+          <button type="button" className="button" onClick={() => onDefineConditions?.(form)}>
+            กำหนดเงื่อนไขลูกค้า
+          </button>
+          <button type="button" className="button" onClick={onCancel}>
+            ยกเลิก
+          </button>
+          <button type="submit" className="button">
+            บันทึก
+          </button>
         </div>
       </form>
     </section>

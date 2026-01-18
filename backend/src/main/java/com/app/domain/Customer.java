@@ -44,9 +44,9 @@ public class Customer {
     @Column(name = "ADDERSS", length = 200)
     private String address;
 
-    private String province;
-    private String amphur;
-    private String tumbon;
+//    private String province;
+//    private String amphur;
+//    private String tumbon;
 
     @Column(name = "GENDER", length = 200)
     private String gender;
@@ -54,7 +54,7 @@ public class Customer {
     @Column(name = "BLOOD_G", length = 200)
     private String bloodGroup;
 
-    private String age;
+//    private String age;
 
     @Column(name = "DOB", length = 200)
     private LocalDate birthDate;

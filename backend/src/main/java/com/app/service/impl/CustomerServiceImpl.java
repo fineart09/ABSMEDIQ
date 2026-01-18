@@ -63,7 +63,7 @@ public class CustomerServiceImpl implements CustomerService {
         //details
         dto.setGender(entity.getGender());
         dto.setBloodGroup(entity.getBloodGroup());
-        dto.setAge(entity.getAge());
+        dto.setAge("0");
         dto.setBirthDate(entity.getBirthDate());
         dto.setPhone(entity.getPhone());
         dto.setEmail(entity.getEmail());
