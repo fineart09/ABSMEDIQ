@@ -284,42 +284,82 @@ export default function CreateCustomer({
     return next;
   };
 
-  const submit = (e) => {
-    e.preventDefault();
-    const nextErrors = validate();
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+  // 1. เพิ่ม State สำหรับจัดการสถานะการบันทึก
+    const [isSaving, setIsSaving] = useState(false);
 
-    const payload = {
-      hn: form.hn,
-      status: form.status || 'ใช้งาน',
-      photoUrl: photoUrl || '',
-      name: {
-        prefixTh: form.prefixTh,
-        firstTh: form.firstNameTh,
-        lastTh: form.lastNameTh,
+    // 2. ปรับปรุงฟังก์ชัน submit เป็น async เพื่อเรียก API
+    const submit = async (e) => {
+      e.preventDefault();
+
+      // Client-side Validation
+      const nextErrors = validate();
+      setErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+
+      setIsSaving(true);
+
+      // 3. Mapping: แปลง Nested Form State เป็น Flat Payload ตาม Java DTO
+      const payload = {
+        // Identity (เว้นว่างไว้ให้ Backend Gen HN ให้)
+        hn: "",
+        status: form.status || "ใช้งาน",
+
+        // Name Group
+        title: form.prefixTh,
+        name: form.firstNameTh,
+        surname: form.lastNameTh,
         nickname: form.nickname,
-      },
-      address: {
-        addressTh: form.addressTh,
-        provinceTh: form.provinceTh,
+
+        // Address Group
+        address: form.addressTh,
+        province: form.provinceTh,
+        amphur: form.districtTh,
+        tumbon: form.subdistrictTh,
         postalCode: form.postalCode,
-        districtTh: form.districtTh,
-        subdistrictTh: form.subdistrictTh,
-      },
-      details: {
-        genderTh: form.genderTh,
+
+        // Details Group
+        gender: form.genderTh,
         bloodGroup: form.bloodGroup,
-        age: form.age,
         birthDate: form.birthDate,
         phone: form.phone,
         email: form.email,
-        notes: form.notes,
-      },
-    };
+        remark: form.notes, // หรือ form.remark ตามที่ตั้งไว้ใน DTO
+        age: form.age,
+        photoUrl: photoUrl || ""
+      };
 
-    onSave?.(payload);
-  };
+      try {
+        // 4. เรียก API POST ไปที่ Spring Boot
+        const response = await fetch('http://localhost:8080/api/customers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `สร้างข้อมูลไม่สำเร็จ (${response.status})`);
+        }
+
+        // ข้อมูลที่บันทึกสำเร็จ (พร้อม HN ใหม่)
+        const result = await response.json();
+
+        alert("สร้างรายชื่อลูกค้าใหม่สำเร็จ (HN: " + result.hn + ")");
+
+        // 5. ส่งค่ากลับไปที่ Parent Component
+        if (onSave) {
+          onSave(result);
+        }
+
+      } catch (err) {
+        console.error("Create Customer Error:", err);
+        alert(`เกิดข้อผิดพลาด: ${err.message}`);
+      } finally {
+        setIsSaving(false);
+      }
+    };
 
   // removed mock filler
 
@@ -747,8 +787,12 @@ export default function CreateCustomer({
           <button type="button" className="button" onClick={onCancel}>
             ยกเลิก
           </button>
-          <button type="submit" className="button">
-            บันทึก
+          <button
+              type="submit"
+              className="button button--primary"
+              disabled={isSaving}
+            >
+              {isSaving ? 'กำลังสร้างข้อมูล...' : 'บันทึก'}
           </button>
         </div>
         {condOpen && (

@@ -1,9 +1,7 @@
 package com.app.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.time.LocalDate;
 
 // แนะนำให้ใช้ Lombok (ถ้าเพิ่มใน pom.xml แล้ว)
@@ -20,6 +18,7 @@ import lombok.AllArgsConstructor;
 public class Customer {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "HN", length = 200)
     private String id;
 

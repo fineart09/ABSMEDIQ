@@ -8,6 +8,8 @@ import com.app.repository.CustomerRepository;
 import com.app.service.CustomerService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -40,6 +42,23 @@ public class CustomerServiceImpl implements CustomerService {
             // ในระบบ Enterprise ควรใช้ Logger (เช่น SLF4J) บันทึก Error
             throw new RuntimeException("เกิดข้อผิดพลาดในการดึงข้อมูลลูกค้า: " + e.getMessage());
         }
+    }
+
+    @Transactional
+    public EditCustomerDTO createCustomer(EditCustomerDTO dto) {
+
+        // 1. แปลง DTO เป็น Entity ใหม่
+        Customer entity = editCustomerMapper.createCustomer(dto);
+
+        //footer (ที่ไม่มีใน create customer)
+        entity.setId(null); // HN คือ Primary Key ของเรา
+        entity.setStatus("Active");
+
+        // 5. บันทึก
+        Customer createdCustomer = customerRepository.save(entity);
+
+        // 6. ส่งข้อมูลที่สมบูรณ์กลับไป (รวมถึง HN ที่เพิ่งสร้าง)
+        return editCustomerMapper.getCustomer(createdCustomer);
     }
 
     @Override

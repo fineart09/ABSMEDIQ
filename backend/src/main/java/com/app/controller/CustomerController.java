@@ -7,6 +7,7 @@ import com.app.mapper.EditCustomerMapper;
 import com.app.service.CustomerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -35,6 +36,15 @@ public class CustomerController {
         EditCustomerDTO dto = editCustomerMapper.getCustomerByHn(hn);
         log.debug("getCustomerByHn: {}", dto);
         return ResponseEntity.ok(dto);
+    }
+
+    @PostMapping
+    public ResponseEntity<EditCustomerDTO> create(@RequestBody EditCustomerDTO dto) {
+        log.info("Creating new customer: {} {}", dto.getName(), dto.getSurname());
+        EditCustomerDTO created = service.createCustomer(dto);
+
+        // คืนค่าพร้อม URI ของทรัพยากรใหม่ (Best Practice)
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{hn}")

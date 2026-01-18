@@ -18,6 +18,32 @@ public class EditCustomerMapper {
         this.customerRepository = customerRepository;
     }
 
+    public Customer createCustomer(EditCustomerDTO dto) {
+        if (dto == null) return null;
+
+        Customer entity = new Customer();
+
+        //name
+        entity.setTitle(dto.getTitle());
+        entity.setName(dto.getName());
+        entity.setLastName(dto.getSurname());
+        entity.setNickName(dto.getNickname());
+        //address
+        entity.setAddress(dto.getAddress());
+        //province , tumbon , amphur ยังไม่มี set entity เพราะยังไม่มี column
+
+        //details
+        entity.setGender(dto.getGender());
+        entity.setBloodGroup(dto.getBloodGroup());
+        entity.setBirthDate(dto.getBirthDate());
+        //age ยังไม่มีการอัพเดทเพราะไม่มี column
+        entity.setPhone(dto.getPhone());
+        entity.setEmail(dto.getEmail());
+        entity.setRemark(dto.getRemark());
+
+        return entity;
+    }
+
     @Transactional(readOnly = true)
     public EditCustomerDTO getCustomerByHn(String hn) {
         Customer entity = customerRepository.findById(hn)

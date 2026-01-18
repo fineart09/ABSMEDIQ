@@ -60,8 +60,6 @@ export default function EditCustomer({
       setIsLoading(true);
       setFetchError(null);
 
-
-
       try {
         const response = await fetch(`/api/customers/${Hn}`, {
           method: 'GET',
