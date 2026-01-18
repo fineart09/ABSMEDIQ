@@ -2,6 +2,7 @@ package com.app.controller;
 
 import com.app.domain.Customer;
 import com.app.dto.CustomerSummaryDTO;
+import com.app.dto.EditCustomerDTO;
 import com.app.service.CustomerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,12 +24,13 @@ public class CustomerController {
         return service.getAllCustomers();
     }
 
-//    @GetMapping("/{id}")
-//    public ResponseEntity<Customer> get(@PathVariable String id) {
-//        return service.getById(id)
-//                .map(ResponseEntity::ok)
-//                .orElse(ResponseEntity.notFound().build());
-//    }
+    @GetMapping("/{hn}")
+    public ResponseEntity<EditCustomerDTO> getCustomerByHn(@PathVariable String hn) {
+        EditCustomerDTO dto = service.getCustomerByHn(hn);
+        return ResponseEntity.ok(dto);
+    }
+
+
 //
 //    @PostMapping
 //    public Customer create(@RequestBody Customer customer) {

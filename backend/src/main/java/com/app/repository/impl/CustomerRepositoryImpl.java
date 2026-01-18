@@ -1,11 +1,14 @@
 package com.app.repository.impl;
 
+import com.app.domain.Customer;
 import com.app.dto.CustomerSummaryDTO;
+import com.app.dto.EditCustomerDTO;
 import com.app.repository.CustomerRepository;
 import com.app.repository.CustomerRepositoryCustom;import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StopWatch;
 
 import java.util.List;import java.util.stream.Collectors;
@@ -58,4 +61,6 @@ public class CustomerRepositoryImpl implements CustomerRepositoryCustom {
             throw e;
         }
     }
+
+
 }
