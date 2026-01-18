@@ -42,45 +42,78 @@ const STATUS_LABELS = {
 function CustomerModal({ customer, onClose }) {
   if (!customer) return null;
 
-  // ฟังก์ชันรวมที่อยู่จาก DTO (Flat structure)
+  // 1. Helper สำหรับรวม ชื่อ-นามสกุล
+  const fullName = `${customer.title || ''} ${customer.name || ''} ${customer.surname || ''}`.trim();
+
+  // 2. Helper สำหรับรวมที่อยู่ (จาก Flat DTO)
   const fullAddress = [
     customer.address,
     customer.tumbon,
     customer.amphur,
     customer.province
-  ].filter(val => val && val !== '-').join(' ');
+  ].filter(val => val && val !== '-' && val !== '').join(' ');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--customer-details" role="dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header"><h3>รายละเอียดลูกค้า</h3></div>
+        <div className="modal-header">
+          <h3>รายละเอียดลูกค้า</h3>
+        </div>
         <div className="modal-body">
-          <div style={{ display: 'block', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'block', marginBottom: '1rem' }}>
             <div className="photo-box">
-              {customer.photoUrl ? <img src={customer.photoUrl} alt="รูป" /> : <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>}
+              {customer.photoUrl ? (
+                <img src={customer.photoUrl} alt="รูป" />
+              ) : (
+                <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>
+              )}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '8px 12px' }}>
-            <div style={{ fontWeight: 600 }}>HN</div><div>{customer.hn}</div>
-            <div style={{ fontWeight: 600 }}>ชื่อ-นามสกุล</div>
-            <div>{`${customer.title || ''} ${customer.name || ''} ${customer.surname || ''}`.trim()}</div>
-            <div style={{ fontWeight: 600 }}>ที่อยู่</div><div>{fullAddress || '-'}</div>
-            <div style={{ fontWeight: 600 }}>ชื่อเล่น</div><div>{customer.nickname || '-'}</div>
-            <div style={{ fontWeight: 600 }}>อายุ</div><div>{customer.age || '0'} ปี</div>
-            <div style={{ fontWeight: 600 }}>วันเกิด</div><div>{customer.birthDate || '-'}</div>
-            <div style={{ fontWeight: 600 }}>เบอร์โทร</div><div>{customer.phone || '-'}</div>
-            <div style={{ fontWeight: 600 }}>อีเมล</div><div>{customer.email || '-'}</div>
-            <div style={{ fontWeight: 600 }}>หมายเหตุ</div><div>{customer.remark || '-'}</div>
-            <div style={{ fontWeight: 600 }}>สถานะ</div>
-            <div>
-              <span className={`badge badge--${customer.status === 'ใช้งาน' || customer.status === 'active' ? 'active' : 'inactive'}`}>
-                {customer.status}
-              </span>
-            </div>
+
+          {/* การจัดเรียงตาม Requirement 11 หัวข้อ */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '160px 1fr',
+            gap: '10px 16px',
+            fontSize: '0.95rem'
+          }}>
+            <div className="label-col">HN</div>
+            <div className="value-col">{customer.hn || '-'}</div>
+
+            <div className="label-col">ชื่อ-นามสกุล</div>
+            <div className="value-col" style={{ fontWeight: 600 }}>{fullName || 'ไม่ระบุ'}</div>
+
+            <div className="label-col">ที่อยู่</div>
+            <div className="value-col">{fullAddress || '-'}</div>
+
+            <div className="label-col">ชื่อเล่น</div>
+            <div className="value-col">{customer.nickname || '-'}</div>
+
+            <div className="label-col">วันเกิด</div>
+            <div className="value-col">{customer.birthDate || '-'}</div>
+
+            <div className="label-col">เพศ</div>
+            <div className="value-col">{customer.gender || '-'}</div>
+
+            <div className="label-col">กรุ๊ปเลือด</div>
+            <div className="value-col">{customer.bloodGroup || '-'}</div>
+
+            <div className="label-col">อายุ</div>
+            <div className="value-col">{customer.age || '0'} ปี</div>
+
+            <div className="label-col">อีเมล</div>
+            <div className="value-col">{customer.email || '-'}</div>
+
+            <div className="label-col">หมายเหตุ</div>
+            <div className="value-col">{customer.remark || '-'}</div>
+
+            <div className="label-col">วันที่ลงทะเบียน</div>
+            <div className="value-col">{customer.registerDate || '-'}</div>
+            {/* หมายเหตุ: หาก Backend ยังไม่มีฟิลด์ registerDate จะแสดง '-' ไปก่อน */}
           </div>
         </div>
         <div className="modal-actions">
-          <button type="button" className="button" onClick={onClose}>ปิด</button>
+          <button type="button" className="button" onClick={onClose}>ปิดหน้าต่าง</button>
         </div>
       </div>
     </div>
