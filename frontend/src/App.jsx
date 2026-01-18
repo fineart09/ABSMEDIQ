@@ -312,7 +312,7 @@ export default function App() {
         );
       case 'แก้ไขรายชื่อลูกค้า':
         return (
-          <CreateCustomer
+          <EditCustomer
             title="แก้ไขรายชื่อลูกค้า"
             initial={editingCustomer}
             initialConditions={

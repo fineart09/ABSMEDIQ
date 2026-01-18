@@ -3,6 +3,7 @@ package com.app.service.impl;
 import com.app.domain.Customer;
 import com.app.dto.CustomerSummaryDTO;
 import com.app.dto.EditCustomerDTO;
+import com.app.mapper.EditCustomerMapper;
 import com.app.repository.CustomerRepository;
 import com.app.service.CustomerService;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,12 @@ import java.util.List;
 public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final EditCustomerMapper editCustomerMapper;
 
     // Senior Best Practice: ใช้ Constructor Injection แทน @Autowired ที่ Field
-    public CustomerServiceImpl(CustomerRepository customerRepository) {
+    public CustomerServiceImpl(CustomerRepository customerRepository, EditCustomerMapper editCustomerMapper) {
         this.customerRepository = customerRepository;
+        this.editCustomerMapper = editCustomerMapper;
     }
 
     /**
@@ -63,7 +66,10 @@ public class CustomerServiceImpl implements CustomerService {
         //details
         dto.setGender(entity.getGender());
         dto.setBloodGroup(entity.getBloodGroup());
-        dto.setAge("0");
+
+        //calculate age before setAge
+        dto.setAge(editCustomerMapper.calculateAge(entity.getBirthDate()));
+
         dto.setBirthDate(entity.getBirthDate());
         dto.setPhone(entity.getPhone());
         dto.setEmail(entity.getEmail());
