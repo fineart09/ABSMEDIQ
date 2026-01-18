@@ -11,5 +11,5 @@ import java.util.List;
 
 public interface CustomerService {
     List<CustomerSummaryDTO> getAllCustomers();
-    EditCustomerDTO getCustomerByHn(String hn);
+    EditCustomerDTO updateCustomer(String hn, EditCustomerDTO dto);
 }

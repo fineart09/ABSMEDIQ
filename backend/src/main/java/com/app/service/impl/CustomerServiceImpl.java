@@ -42,39 +42,22 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
-    @Transactional(readOnly = true)
-    public EditCustomerDTO getCustomerByHn(String hn) {
+    @Override
+    @Transactional
+    public EditCustomerDTO updateCustomer(String hn, EditCustomerDTO dto) {
+        // 1. ดึงข้อมูลเดิมมาล็อคไว้
         Customer entity = customerRepository.findById(hn)
-                .orElseThrow(() -> new RuntimeException("ไม่พบข้อมูลลูกค้า HN: " + hn));
+                .orElseThrow(() -> new RuntimeException("Update failed: Customer not found"));
 
-        // แปลง Entity เป็น DTO
-        EditCustomerDTO dto = new EditCustomerDTO();
+        // 2. ใช้ Mapper อัปเดตข้อมูลจาก DTO ลง Entity
+        editCustomerMapper.updateCustomer(dto, entity);
 
-        //footer
-        dto.setHn(entity.getId());
-        dto.setStatus(entity.getStatus());
-        //name
-        dto.setTitle(entity.getTitle());
-        dto.setName(entity.getName());
-        dto.setSurname(entity.getLastName());
-        dto.setNickname(entity.getNickName());
-        //address
-        dto.setAddress(entity.getAddress());
-        dto.setProvince("-");
-        dto.setAmphur("-");
-        dto.setTumbon("-");
-        //details
-        dto.setGender(entity.getGender());
-        dto.setBloodGroup(entity.getBloodGroup());
+        // 3. บันทึก (Spring Data JPA จะทำ Dirty Check และ Update ให้เองเมื่อจบ Transaction)
+        Customer savedCustomer = customerRepository.save(entity);
 
-        //calculate age before setAge
-        dto.setAge(editCustomerMapper.calculateAge(entity.getBirthDate()));
-
-        dto.setBirthDate(entity.getBirthDate());
-        dto.setPhone(entity.getPhone());
-        dto.setEmail(entity.getEmail());
-        dto.setRemark(entity.getRemark());
-
-        return dto;
+        // 4. คืนค่า DTO ที่อัปเดตแล้วกลับไป (รวมถึงการคำนวณอายุใหม่)
+        return editCustomerMapper.getCustomer(savedCustomer);
     }
+
+
 }

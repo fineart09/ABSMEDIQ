@@ -32,7 +32,6 @@ const displayName = (c) => {
  */
 const STATUS_LABELS = {
   'active': 'ใช้งาน',
-  'deactive': 'ไม่ใช้งาน',
   'inactive': 'ไม่ใช้งาน'
 };
 
@@ -40,17 +39,16 @@ const STATUS_LABELS = {
  * 3. CustomerModal Component
  * ปรับให้รับ fullIndex เข้ามาเพื่อให้ดึงข้อมูลตัวเต็มได้ถูกต้อง
  */
-function CustomerModal({ customer, fullIndex, onClose }) {
+function CustomerModal({ customer, onClose }) {
   if (!customer) return null;
-  const full = fullIndex.get(customer.id);
 
-  const addressTh = [
-    full?.address?.addressTh,
-    full?.address?.subdistrictTh,
-    full?.address?.districtTh,
-    full?.address?.provinceTh,
-    full?.address?.postalCode,
-  ].filter(Boolean).join(' ');
+  // ฟังก์ชันรวมที่อยู่จาก DTO (Flat structure)
+  const fullAddress = [
+    customer.address,
+    customer.tumbon,
+    customer.amphur,
+    customer.province
+  ].filter(val => val && val !== '-').join(' ');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -59,17 +57,26 @@ function CustomerModal({ customer, fullIndex, onClose }) {
         <div className="modal-body">
           <div style={{ display: 'block', marginBottom: '0.75rem' }}>
             <div className="photo-box">
-              {full?.photoUrl ? <img src={full.photoUrl} alt="รูป" /> : <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>}
+              {customer.photoUrl ? <img src={customer.photoUrl} alt="รูป" /> : <span className="photo-box__placeholder">ยังไม่มีรูปภาพ</span>}
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '8px 12px' }}>
-            <div>HN</div><div>{customer.id}</div>
-            <div>ชื่อ-นามสกุล</div><div>{customer.name}</div>
-            <div>ที่อยู่</div><div>{addressTh || '-'}</div>
-            <div>ชื่อเล่น</div><div>{full?.name?.nickname || '-'}</div>
-            <div>วันเกิด</div><div>{full?.details?.birthDate || '-'}</div>
-            <div>อีเมล</div><div>{full?.details?.email || customer.email || '-'}</div>
-            <div>หมายเหตุ</div><div>{full?.details?.notes || '-'}</div>
+            <div style={{ fontWeight: 600 }}>HN</div><div>{customer.hn}</div>
+            <div style={{ fontWeight: 600 }}>ชื่อ-นามสกุล</div>
+            <div>{`${customer.title || ''} ${customer.name || ''} ${customer.surname || ''}`.trim()}</div>
+            <div style={{ fontWeight: 600 }}>ที่อยู่</div><div>{fullAddress || '-'}</div>
+            <div style={{ fontWeight: 600 }}>ชื่อเล่น</div><div>{customer.nickname || '-'}</div>
+            <div style={{ fontWeight: 600 }}>อายุ</div><div>{customer.age || '0'} ปี</div>
+            <div style={{ fontWeight: 600 }}>วันเกิด</div><div>{customer.birthDate || '-'}</div>
+            <div style={{ fontWeight: 600 }}>เบอร์โทร</div><div>{customer.phone || '-'}</div>
+            <div style={{ fontWeight: 600 }}>อีเมล</div><div>{customer.email || '-'}</div>
+            <div style={{ fontWeight: 600 }}>หมายเหตุ</div><div>{customer.remark || '-'}</div>
+            <div style={{ fontWeight: 600 }}>สถานะ</div>
+            <div>
+              <span className={`badge badge--${customer.status === 'ใช้งาน' || customer.status === 'active' ? 'active' : 'inactive'}`}>
+                {customer.status}
+              </span>
+            </div>
           </div>
         </div>
         <div className="modal-actions">
@@ -96,17 +103,46 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // 2. ประกาศ handleView ให้อยู่ในระดับเดียวกับ State
+      const handleView = async (customerSummary) => {
+        const hn = customerSummary.hn;
+
+        // ดักค่าแบบ Strict ตามที่เราคุยกัน (เพราะ hn อาจเป็น 0)
+        if (hn === undefined || hn === null) return;
+
+        try {
+          const response = await fetch(`/api/customers/${hn}`);
+          if (!response.ok) throw new Error("Fetch error");
+          const fullData = await response.json();
+
+          // เรียกใช้ setSelected ที่ประกาศไว้ด้านบน
+          setSelected(fullData);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+
   // --- [จุดที่ 1] Fetch Data จาก Java Backend ---
   useEffect(() => {
     const fetchBackend = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/customers'); // endpoint ของ Java API
+        const response = await fetch('/api/customers');
         if (!response.ok) throw new Error("Backend Connection Error");
         const data = await response.json();
-        setCustomers(data);
+
+        // --- จุดดักค่าก่อนเข้า State ---
+        console.log("Raw Backend Data:", data); // ตรวจสอบว่ามี field 'hn' หรือไม่
+        const validatedData = data.map((c, index) => {
+          if (!c.hn && !c.id) {
+            console.error(`Record at index ${index} is missing both hn and id!`, c);
+          }
+          return c;
+        });
+
+        setCustomers(validatedData);
       } catch (err) {
-        console.warn("API Error, falling back to mock:", err);
+        console.warn("API Error:", err);
         setIsMockup(true);
       } finally {
         setIsLoading(false);
@@ -136,19 +172,22 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
 
   // --- [จุดที่ 3] จัดเตรียมข้อมูลและแปลงสถานะ (Data Mapping) ---
   const base = useMemo(() => {
-    const src = isMockup ? (Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []) : customers;
+    const src = isMockup ? MOCK_CUSTOMERS_FULL : customers;
+
     return src.map((c, i) => {
-      // แปลงสถานะจาก Backend (Active -> ใช้งาน)
-      const rawStatus = (c.status || '').toLowerCase();
-      const mappedStatus = STATUS_LABELS[rawStatus] || c.status || 'ใช้งาน';
+      // ดักหาค่า HN: ลองเช็คหลายที่เผื่อ Backend เปลี่ยนชื่อ field
+      const hnValue = c.hn || c.id;
+
+      if (!hnValue) {
+        console.error(`[Data Mapping] Missing HN/ID for customer at index ${i}`, c);
+      }
 
       return {
-        id: c.hn || String(c.id ?? '') || `HN${String(i + 1).padStart(3, '0')}`,
+        id: String(c.id || i),
+        hn: hnValue, // ส่งค่าที่ดักมาได้ลงไปใน field 'hn' โดยเฉพาะ
         name: displayName(c),
         phone: c?.details?.phone || c.phone || '-',
-        email: c?.details?.email || c.email || '-',
-        status: statusOverrides?.[c.hn || c.id] || mappedStatus,
-        lastVisit: c.lastVisit || '',
+        status: STATUS_LABELS[c.status?.toLowerCase()] || c.status || 'ใช้งาน',
         segment: c?.segment || c?.conditions?.segment || '-',
       };
     });
@@ -256,7 +295,7 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => setSelected(c)}
+                    onClick={() => handleView(c)} // เรียก handleView แทน setSelected(c)
                     style={{ marginRight: 8 }}
                   >
                     ดูข้อมูล

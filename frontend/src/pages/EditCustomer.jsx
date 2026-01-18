@@ -354,41 +354,78 @@ export default function EditCustomer({
     return next;
   };
 
-  const submit = (e) => {
+  // เพิ่ม State สำหรับสถานะการบันทึก
+  const [isSaving, setIsSaving] = useState(false);
+
+  const submit = async (e) => {
     e.preventDefault();
+
+    // 1. Client-side Validation
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    // 2. เริ่มกระบวนการบันทึก
+    setIsSaving(true);
+
+    // 3. Data Transformation (Nested State -> Flat DTO)
+    // ต้องให้ Key ตรงกับ EditCustomerDTO ใน Java ของคุณเป๊ะๆ
     const payload = {
       hn: form.hn,
-      status: form.status || 'ใช้งาน',
-      photoUrl: photoUrl || '',
-      name: {
-        prefixTh: form.prefixTh,
-        firstTh: form.firstNameTh,
-        lastTh: form.lastNameTh,
-        nickname: form.nickname,
-      },
-      address: {
-        addressTh: form.addressTh,
-        provinceTh: form.provinceTh,
-        postalCode: form.postalCode,
-        districtTh: form.districtTh,
-        subdistrictTh: form.subdistrictTh,
-      },
-      details: {
-        genderTh: form.genderTh,
-        bloodGroup: form.bloodGroup,
-        age: form.age,
-        birthDate: form.birthDate,
-        phone: form.phone,
-        email: form.email,
-        notes: form.notes,
-      },
+      status: form.status,
+      // Name group
+      title: form.prefixTh,
+      name: form.firstNameTh,
+      surname: form.lastNameTh,
+      nickname: form.nickname,
+      // Address group
+      address: form.addressTh,
+      province: form.provinceTh || "-",
+      amphur: form.districtTh || "-",
+      tumbon: form.subdistrictTh || "-",
+      // Details group
+      gender: form.genderTh,
+      bloodGroup: form.bloodGroup,
+      age: form.age, // Backend จะคำนวณใหม่ตาม Logic ที่เราทำไว้
+      birthDate: form.birthDate,
+      phone: form.phone,
+      email: form.email,
+      remark: form.notes
     };
 
-    onSave?.(payload);
+    try {
+      // 4. เรียก API ด้วย Method PUT (สำหรับ Update)
+      const response = await fetch(`http://localhost:8080/api/customers/${form.hn}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          // 'Authorization': `Bearer ${token}` // ถ้ามีระบบ Security
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `บันทึกไม่สำเร็จ (${response.status})`);
+      }
+
+      // ข้อมูลที่บันทึกสำเร็จจะถูกส่งกลับมาจาก CustomerMapper.toDto()
+      const updatedCustomer = await response.json();
+
+      // 5. UX Feedback
+      alert("บันทึกข้อมูลลูกค้าสำเร็จ");
+
+      // 6. Notify Parent Component (เพื่อให้หน้า List อัปเดตข้อมูลล่าสุด)
+      if (onSave) {
+        onSave(updatedCustomer);
+      }
+
+    } catch (err) {
+      console.error("Save Error:", err);
+      alert(`เกิดข้อผิดพลาด: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // removed mock filler
@@ -817,8 +854,13 @@ export default function EditCustomer({
           <button type="button" className="button" onClick={onCancel}>
             ยกเลิก
           </button>
-          <button type="submit" className="button">
-            บันทึก
+          <button
+            type="submit"
+            className="button"
+            disabled={isSaving}
+            style={{ opacity: isSaving ? 0.7 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}
+          >
+            {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
           </button>
         </div>
         {condOpen && (

@@ -3,6 +3,7 @@ package com.app.controller;
 import com.app.domain.Customer;
 import com.app.dto.CustomerSummaryDTO;
 import com.app.dto.EditCustomerDTO;
+import com.app.mapper.EditCustomerMapper;
 import com.app.service.CustomerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,9 +18,11 @@ public class CustomerController {
 
     private final CustomerService service;
     private static final Logger log = LoggerFactory.getLogger(CustomerController.class);
+    private final EditCustomerMapper editCustomerMapper;
 
-    public CustomerController(CustomerService service) {
+    public CustomerController(CustomerService service, EditCustomerMapper editCustomerMapper) {
         this.service = service;
+        this.editCustomerMapper = editCustomerMapper;
     }
 
     @GetMapping
@@ -29,8 +32,15 @@ public class CustomerController {
 
     @GetMapping("/{hn}")
     public ResponseEntity<EditCustomerDTO> getCustomerByHn(@PathVariable String hn) {
-        EditCustomerDTO dto = service.getCustomerByHn(hn);
+        EditCustomerDTO dto = editCustomerMapper.getCustomerByHn(hn);
         log.debug("getCustomerByHn: {}", dto);
         return ResponseEntity.ok(dto);
+    }
+
+    @PutMapping("/{hn}")
+    public ResponseEntity<EditCustomerDTO> update(@PathVariable String hn, @RequestBody EditCustomerDTO dto) {
+        log.info("Updating customer HN: {}", hn);
+        EditCustomerDTO result = service.updateCustomer(hn, dto);
+        return ResponseEntity.ok(result);
     }
 }
