@@ -1,3 +1,33 @@
+/* Startup page styles for index.html */
+.startup-container {
+  font-family: 'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto,
+    Arial, sans-serif;
+  padding: 24px;
+  color: #111827;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.startup-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: #158990;
+}
+.startup-desc {
+  margin: 0 0 10px;
+  opacity: 0.9;
+}
+.startup-pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: auto;
+}
+.startup-note {
+  margin: 10px 0 0;
+  opacity: 0.8;
+}
 .nav-item.dropdown {
   position: relative;
 }
@@ -98,7 +128,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image: var(--app-logo-url);
+  background-image: url('/logo.png');
   background-repeat: no-repeat;
   background-position: center;
   background-size: min(784px, 95vw) auto;
@@ -632,7 +662,6 @@ p {
   pointer-events: none;
   z-index: 0;
   border-radius: inherit;
-  background-image: var(--app-logo-url);
   background-repeat: no-repeat;
   background-position: center;
   background-size: min(588px, 77vw) auto;
@@ -673,6 +702,20 @@ p {
 }
 .customers-table tbody tr:hover {
   background: rgba(21, 137, 144, 0.06);
+}
+
+/* Receive stock page: allow long names to wrap so table fits viewport */
+.receive-stock-page .customers-table td:nth-child(2),
+.receive-stock-page .customers-table td:nth-child(3) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Prevent subtle overflow caused by padding/border on 100%-width cards */
+.receive-stock-page .form-card,
+.receive-stock-page .table-card {
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 /* Rounded corners on header row */

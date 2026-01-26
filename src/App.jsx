@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import logoUrl from '../logo.png';
 import CreateAppointment from './pages/CreateAppointment.jsx';
 import CreateCustomer from './pages/CreateCustomer.jsx';
 import CreateProduct from './pages/CreateProduct.jsx';
 import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
+import EditProduct from './pages/EditProduct.jsx';
 import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
 import Products from './pages/Products.jsx';
-import PurchaseHome from './pages/PurchaseHome.jsx';
+// import PurchaseHome from './pages/PurchaseHome.jsx';
 import PurchaseOrders from './pages/PurchaseOrders.jsx';
 import ReceiveStock from './pages/ReceiveStock.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
@@ -41,14 +41,22 @@ function Modal({ open, title, onClose }) {
 }
 
 export default function App() {
+  const stripProductPhotoUrl = (p) => {
+    if (!p || typeof p !== 'object') return p;
+    // Remove legacy product photo field from the system.
+    const { photoUrl: _photoUrl, ...rest } = p;
+    return rest;
+  };
+
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
-  const [products, setProducts] = useState(() =>
-    Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : []
-  );
+  const [products, setProducts] = useState(() => {
+    const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
+    return src.map(stripProductPhotoUrl);
+  });
   const [purchaseOrders, setPurchaseOrders] = useState(() =>
     Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
   );
@@ -111,13 +119,6 @@ export default function App() {
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--app-logo-url',
-      `url(${logoUrl})`
-    );
-  }, [logoUrl]);
 
   useEffect(() => {
     const customersPages = new Set(['รายชื่อลูกค้า', 'ค้นหารายชื่อลูกค้า']);
@@ -294,32 +295,44 @@ export default function App() {
               setActive('แก้ไขรายชื่อลูกค้า');
             }}
             onCreateNew={() => {
+              console.log('กดปุ่มสร้างรายชื่อลูกค้าใหม่');
               setActive('สร้างรายชื่อลูกค้าใหม่');
+              console.log('active page:', 'สร้างรายชื่อลูกค้าใหม่');
             }}
             statusOverrides={customerStatusOverrides}
           />
         );
       case 'สร้างรายชื่อลูกค้าใหม่':
         return (
-          <CreateCustomer
-            onCancel={() => setActive('รายชื่อลูกค้า')}
-            onSave={(data) => {
-              console.log('สร้างลูกค้าใหม่:', data);
-              setActive('รายชื่อลูกค้า');
-              openModal('สร้างรายชื่อลูกค้าสำเร็จ');
-            }}
-          />
+          <div>
+            <h1>สร้างรายชื่อลูกค้าใหม่</h1>
+            <button
+              className="button"
+              onClick={() => setActive('รายชื่อลูกค้า')}
+            >
+              กลับ
+            </button>
+            <CreateCustomer
+              initial={null}
+              initialConditions={{}}
+              onCancel={() => setActive('รายชื่อลูกค้า')}
+              onSave={(data) => {
+                console.log('สร้างลูกค้าใหม่:', data);
+                setActive('รายชื่อลูกค้า');
+                openModal('สร้างรายชื่อลูกค้าสำเร็จ');
+              }}
+            />
+          </div>
         );
       case 'แก้ไขรายชื่อลูกค้า':
+        if (!editingCustomer) {
+          setActive('รายชื่อลูกค้า');
+          return null;
+        }
         return (
-          <CreateCustomer
-            title="แก้ไขรายชื่อลูกค้า"
+          <EditCustomer
             initial={editingCustomer}
-            initialConditions={
-              editingCustomer
-                ? customerConditions[editingCustomer.hn]
-                : undefined
-            }
+            initialConditions={customerConditions[editingCustomer.hn] || {}}
             onCancel={() => setActive('รายชื่อลูกค้า')}
             onSave={(data) => {
               console.log('แก้ไขลูกค้า:', data);
@@ -349,18 +362,6 @@ export default function App() {
                   receiptAddress: cond.receiptAddress || '',
                 },
               }));
-              openModal('บันทึกเงื่อนไขลูกค้าสำเร็จ');
-            }}
-          />
-        );
-      case 'สั่งซื้อสินค้า':
-        return (
-          <PurchaseHome
-            onNavigate={(page) => {
-              if (page === 'สร้างรายการสั่งซื้อ') {
-                setEditingPurchaseOrder(null);
-              }
-              setActive(page);
             }}
           />
         );
@@ -371,6 +372,9 @@ export default function App() {
             onCreateNew={() => {
               setEditingPurchaseOrder(null);
               setActive('สร้างรายการสั่งซื้อ');
+            }}
+            onBackToPurchaseHome={() => {
+              setActive('รายการสินค้า');
             }}
             onEdit={(order) => {
               setEditingPurchaseOrder(order);
@@ -465,7 +469,7 @@ export default function App() {
               setActive('สร้างรายการสินค้าใหม่');
             }}
             onPurchase={() => {
-              setActive('สั่งซื้อสินค้า');
+              setActive('รายการสั่งซื้อสินค้า');
             }}
             onReceiveStock={() => {
               setActive('รับสินค้าเข้า stock');
@@ -477,30 +481,59 @@ export default function App() {
           <ReceiveStock
             existingProducts={products}
             onCancel={() => setActive('รายการสินค้า')}
-            onImported={(incoming) => {
-              const list = Array.isArray(incoming) ? incoming : [];
-              const prevByCode = new Map(
-                (Array.isArray(products) ? products : []).map((p) => [
-                  String(p?.code || ''),
-                  p,
-                ])
-              );
+            onReceive={({ code, qty, lotNo, expiryDate }) => {
+              const codeKey = String(code || '').trim();
+              if (!codeKey) {
+                openModal('รับสินค้าเข้า stock ไม่สำเร็จ: ไม่พบรหัสสินค้า');
+                return;
+              }
+              if (
+                !(Array.isArray(products) ? products : []).some(
+                  (p) => String(p?.code || '') === codeKey
+                )
+              ) {
+                openModal(
+                  `รับสินค้าเข้า stock ไม่สำเร็จ: ไม่พบสินค้า ${codeKey}`
+                );
+                return;
+              }
 
-              let added = 0;
-              let updated = 0;
-              list.forEach((p) => {
-                const code = String(p?.code || '').trim();
-                if (!code) return;
-                if (prevByCode.has(code)) updated += 1;
-                else added += 1;
-                const prev = prevByCode.get(code);
-                prevByCode.set(code, prev ? { ...prev, ...p } : p);
+              const receivedAt = new Date().toISOString().slice(0, 10);
+
+              setProducts((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                const next = list.map((p) => {
+                  if (String(p?.code || '') !== codeKey) return p;
+
+                  const currentStock = Number.isFinite(Number(p?.stock))
+                    ? Number(p.stock)
+                    : 0;
+                  const nextStock = currentStock + Number(qty || 0);
+                  const stockLots = Array.isArray(p?.stockLots)
+                    ? p.stockLots
+                    : [];
+
+                  return stripProductPhotoUrl({
+                    ...p,
+                    stock: nextStock,
+                    status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                    updatedAt: receivedAt,
+                    stockLots: [
+                      ...stockLots,
+                      {
+                        lotNo: String(lotNo || '').trim(),
+                        expiryDate: String(expiryDate || '').trim(),
+                        qty: Number(qty || 0),
+                        receivedAt,
+                      },
+                    ],
+                  });
+                });
+                return next.map(stripProductPhotoUrl);
               });
 
-              setProducts(Array.from(prevByCode.values()));
-              setActive('รายการสินค้า');
               openModal(
-                `นำสินค้าเข้า stock สำเร็จ (เพิ่ม ${added}, อัปเดต ${updated})`
+                `รับสินค้าเข้า stock สำเร็จ: ${codeKey} +${qty} (LOT ${lotNo}, EXP ${expiryDate})`
               );
             }}
           />
@@ -519,7 +552,7 @@ export default function App() {
                       p,
                     ])
                   );
-                  byCode.set(String(data.code), data);
+                  byCode.set(String(data.code), stripProductPhotoUrl(data));
                   return Array.from(byCode.values());
                 });
               }
@@ -530,7 +563,7 @@ export default function App() {
         );
       case 'แก้ไขรายละเอียดสินค้า':
         return (
-          <CreateProduct
+          <EditProduct
             title="แก้ไขรายละเอียดสินค้า"
             initial={editingProduct}
             onCancel={() => {
@@ -548,10 +581,8 @@ export default function App() {
                     ])
                   );
                   const existing = byCode.get(String(data.code));
-                  byCode.set(
-                    String(data.code),
-                    existing ? { ...existing, ...data } : data
-                  );
+                  const merged = existing ? { ...existing, ...data } : data;
+                  byCode.set(String(data.code), stripProductPhotoUrl(merged));
                   return Array.from(byCode.values());
                 });
               }
@@ -596,7 +627,7 @@ export default function App() {
             onClick={() => handleNavItemClick('ตารางนัดหมาย')}
             aria-label="ไปที่ตารางนัดหมาย"
           >
-            <img src={logoUrl} alt="ABSMEDIQ logo" />
+            <img src="/logo.png" alt="ABSMEDIQ" />
           </button>
 
           <div

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import MOCK_CUSTOMERS_FULL from '../mocks/customersFull';
+import ENRICHED_CUSTOMERS from '../mocks/customersFull';
 const displayName = (c) => {
   const thPrefix = c?.name?.prefixTh || '';
   const thFirst = c?.name?.firstTh || '';
@@ -14,25 +14,8 @@ const displayName = (c) => {
   return 'ไม่ระบุ';
 };
 
-const MOCK_CUSTOMERS = (
-  Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []
-).map((c, i) => {
-  const hn = c.hn || `HN${String(i + 1).padStart(3, '0')}`;
-  return {
-    id: hn,
-    hn,
-    name: displayName(c),
-    phone: c?.details?.phone || '',
-    email: c?.details?.email || '',
-    status: c.status || 'ใช้งาน',
-    lastVisit: c.lastVisit || '',
-    segment: c.segment || '',
-    discount: c.discount || '',
-  };
-});
-
 const FULL_INDEX = new Map(
-  (Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : []).map((c) => [
+  (Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS : []).map((c) => [
     c.hn,
     c,
   ])
@@ -156,7 +139,7 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
   }, []);
 
   const base = useMemo(() => {
-    const src = Array.isArray(MOCK_CUSTOMERS_FULL) ? MOCK_CUSTOMERS_FULL : [];
+    const src = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS : [];
     return src.map((c, i) => ({
       id: c.hn || `HN${String(i + 1).padStart(3, '0')}`,
       name: displayName(c),

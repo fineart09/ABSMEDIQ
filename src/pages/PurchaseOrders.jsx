@@ -49,6 +49,7 @@ export default function PurchaseOrders({
   purchaseOrders,
   onEdit,
   onCreateNew,
+  onBackToPurchaseHome,
 }) {
   const stickyRef = useRef(null);
   const [query, setQuery] = useState('');
@@ -154,6 +155,26 @@ export default function PurchaseOrders({
               onClick={() => onCreateNew?.()}
             >
               สร้างรายการสั่งซื้อ
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              onClick={() =>
+                window?.location && window.location.hash
+                  ? (window.location.hash = '#รับสินค้าเข้า stock')
+                  : null
+              }
+            >
+              รับสินค้าจากใบสั่งซื้อ
+            </button>
+
+            <button
+              type="button"
+              className="button button--solid"
+              onClick={() => onBackToPurchaseHome?.()}
+            >
+              กลับไปหน้ารายการสินค้า
             </button>
           </div>
         </div>

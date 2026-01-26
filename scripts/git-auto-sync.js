@@ -71,7 +71,7 @@ const watcher = chokidar.watch('.', {
   ignoreInitial: true,
 });
 
-watcher.on('all', (event, path) => {
+watcher.on('all', (event, _path) => {
   // Only react to file changes, additions, deletions, renames
   if (['add', 'change', 'unlink', 'addDir', 'unlinkDir'].includes(event)) {
     scheduleSync();

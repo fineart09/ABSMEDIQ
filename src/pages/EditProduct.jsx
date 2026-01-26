@@ -6,12 +6,6 @@ const toNumber = (v) => {
   return Number.isFinite(n) ? n : '';
 };
 
-const generateProductCode = () => {
-  const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `PRD${dateKey}-${rand}`;
-};
-
 const CATEGORY_OPTIONS = ['ยาเม็ด', 'ยาน้ำ', 'ยาผง', 'เวชภัณฑ์'];
 const UNIT_OPTIONS = [
   'เม็ด',
@@ -27,7 +21,12 @@ const UNIT_OPTIONS = [
   'ชิ้น',
 ];
 
-export default function CreateProduct({ onCancel, onSave, initial, title }) {
+export default function EditProduct({
+  onCancel,
+  onSave,
+  initial,
+  title = 'แก้ไขรายละเอียดสินค้า',
+}) {
   const initialForm = useMemo(() => {
     if (!initial) {
       return {
@@ -67,12 +66,18 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const isEdit = Boolean(initial);
 
   useEffect(() => {
     setForm(initialForm);
   }, [initialForm]);
 
-  const requiredFields = useMemo(() => ['nameTh', 'category', 'unit'], []);
+  const requiredFields = useMemo(() => {
+    // Allow editing without changing code, but still require code on create.
+    return isEdit
+      ? ['nameTh', 'category', 'unit']
+      : ['code', 'nameTh', 'category', 'unit'];
+  }, [isEdit]);
 
   const update = (field) => (e) => {
     const value = e.target.value;
@@ -121,11 +126,8 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
     e.preventDefault();
     if (!validate()) return;
 
-    const code = String(form.code || '').trim() || generateProductCode();
-
     onSave?.({
       ...form,
-      code,
       price: form.price === '' ? '' : Number(form.price),
       stock: form.stock === '' ? '' : Number(form.stock),
       lowStockAlertEnabled: Boolean(form.lowStockAlertEnabled),
@@ -141,8 +143,47 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
     <section>
       <h1 className="page-title">{title || 'สร้างรายการสินค้าใหม่'}</h1>
 
-      <form className="form-card" onSubmit={submit}>
+      <form
+        className="form-card"
+        onSubmit={submit}
+        style={{
+          position: 'relative',
+          ...(isEdit ? { paddingTop: '2.25rem' } : null),
+        }}
+      >
+        {isEdit ? (
+          <span
+            className="badge badge--active badge--hn"
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              transform: 'scale(1.3)',
+              transformOrigin: 'top right',
+            }}
+          >
+            รหัสสินค้า: {form.code || '-'}
+          </span>
+        ) : null}
         <div className="form-grid">
+          {!isEdit ? (
+            <>
+              <label>รหัสสินค้า *</label>
+              <div>
+                <input
+                  className="input"
+                  value={form.code}
+                  onChange={update('code')}
+                  placeholder="เช่น PRD013"
+                  aria-label="รหัสสินค้า"
+                />
+                {errors.code ? (
+                  <div className="field-error">{errors.code}</div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+
           <label>ชื่อสินค้า *</label>
           <div>
             <input
@@ -156,19 +197,6 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
               <div className="field-error">{errors.nameTh}</div>
             ) : null}
           </div>
-
-          {initial ? (
-            <>
-              <label>ชื่อสินค้า (EN)</label>
-              <input
-                className="input"
-                value={form.nameEn}
-                onChange={update('nameEn')}
-                placeholder="Product name"
-                aria-label="ชื่อสินค้า (EN)"
-              />
-            </>
-          ) : null}
 
           <label>หมวดหมู่ *</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
