@@ -13,3 +13,6 @@ yarn-error.log*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local build artifacts
+ABSMEDIQ-iis.zip
