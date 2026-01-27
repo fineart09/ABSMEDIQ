@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:iis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-iis.ps1",
     "lint": "eslint .",
     "preview": "vite preview",
     "auto-sync": "node scripts/git-auto-sync.js"

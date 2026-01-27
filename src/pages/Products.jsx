@@ -13,10 +13,7 @@ const toCurrency = (n) => {
 function ProductModal({ product, onClose }) {
   if (!product) return null;
 
-  const price = Number(product.price);
-  const cost = Number(product.cost);
-  const margin =
-    Number.isFinite(price) && Number.isFinite(cost) ? price - cost : null;
+  const displayName = product.nameTh || product.nameEn || '-';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -45,25 +42,19 @@ function ProductModal({ product, onClose }) {
               <span className="badge badge--hn">{product.code}</span>
             </div>
             <div>ชื่อสินค้า</div>
-            <div>{product.nameTh || '-'}</div>
-            <div>ชื่อสินค้า (EN)</div>
-            <div>{product.nameEn || '-'}</div>
+            <div>{displayName}</div>
             <div>หมวดหมู่</div>
             <div>{product.category || '-'}</div>
+            <div>คลัง</div>
+            <div>{product.warehouse || '-'}</div>
             <div>หน่วย</div>
             <div>{product.unit || '-'}</div>
             <div>ราคา</div>
             <div>{toCurrency(product.price)}</div>
-            <div>ต้นทุน</div>
-            <div>{toCurrency(product.cost)}</div>
-            <div>กำไรขั้นต้น</div>
-            <div>{margin === null ? '-' : toCurrency(margin)}</div>
             <div>คงเหลือ</div>
             <div>
               {Number.isFinite(Number(product.stock)) ? product.stock : '-'}
             </div>
-            <div>ผู้จำหน่าย</div>
-            <div>{product.supplier || '-'}</div>
             <div>สถานะ</div>
             <div>
               <span
@@ -72,15 +63,13 @@ function ProductModal({ product, onClose }) {
                   (product.status === 'ใช้งาน'
                     ? 'active'
                     : product.status === 'ไม่ใช้งาน'
-                    ? 'inactive'
-                    : String(product.status || '').toLowerCase())
+                      ? 'inactive'
+                      : String(product.status || '').toLowerCase())
                 }
               >
                 {product.status || '-'}
               </span>
             </div>
-            <div>อัปเดตล่าสุด</div>
-            <div>{product.updatedAt || '-'}</div>
             <div>รายละเอียด</div>
             <div style={{ whiteSpace: 'pre-wrap' }}>
               {product.description || '-'}
@@ -125,6 +114,8 @@ export default function Products({
   onCreateNew,
   onPurchase,
   onReceiveStock,
+  onViewMovements,
+  onViewConsumables,
 }) {
   const [query, setQuery] = useState('');
   const stickyRef = useRef(null);
@@ -161,8 +152,8 @@ export default function Products({
     const src = Array.isArray(products)
       ? products
       : Array.isArray(MOCK_PRODUCTS_FULL)
-      ? MOCK_PRODUCTS_FULL
-      : [];
+        ? MOCK_PRODUCTS_FULL
+        : [];
     return normalizeProducts(src);
   }, [products]);
 
@@ -254,6 +245,22 @@ export default function Products({
             >
               สร้างรายการสินค้าใหม่
             </button>
+
+            <button
+              type="button"
+              className="button"
+              onClick={() => onViewMovements?.()}
+            >
+              รายการเคลื่อนไหวสินค้า
+            </button>
+
+            <button
+              type="button"
+              className="button button--solid"
+              onClick={() => onViewConsumables?.()}
+            >
+              วัสดุสิ้นเปลืองและอื่นๆ
+            </button>
           </div>
         </div>
 
@@ -322,8 +329,8 @@ export default function Products({
                       (p.status === 'ใช้งาน'
                         ? 'active'
                         : p.status === 'ไม่ใช้งาน'
-                        ? 'inactive'
-                        : String(p.status || '').toLowerCase())
+                          ? 'inactive'
+                          : String(p.status || '').toLowerCase())
                     }
                   >
                     {p.status}

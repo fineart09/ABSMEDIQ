@@ -9,9 +9,16 @@ import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
 import Products from './pages/Products.jsx';
 // import PurchaseHome from './pages/PurchaseHome.jsx';
 import PurchaseOrders from './pages/PurchaseOrders.jsx';
+import Suppliers from './pages/Suppliers.jsx';
+import CreateSupplier from './pages/CreateSupplier.jsx';
 import ReceiveStock from './pages/ReceiveStock.jsx';
+import ProductMovements from './pages/ProductMovements.jsx';
+import Consumables from './pages/Consumables.jsx';
+import ReceiveConsumablesStock from './pages/ReceiveConsumablesStock.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
+import SUPPLIERS_FULL from './mocks/suppliersFull';
+import CONSUMABLES_FULL from './mocks/consumablesFull.js';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -57,6 +64,12 @@ export default function App() {
     const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
     return src.map(stripProductPhotoUrl);
   });
+  const [consumables, setConsumables] = useState(() =>
+    Array.isArray(CONSUMABLES_FULL) ? CONSUMABLES_FULL : []
+  );
+  const [suppliers, setSuppliers] = useState(() =>
+    Array.isArray(SUPPLIERS_FULL) ? SUPPLIERS_FULL : []
+  );
   const [purchaseOrders, setPurchaseOrders] = useState(() =>
     Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
   );
@@ -122,7 +135,13 @@ export default function App() {
 
   useEffect(() => {
     const customersPages = new Set(['รายชื่อลูกค้า', 'ค้นหารายชื่อลูกค้า']);
-    const productsPages = new Set(['รายการสินค้า', 'ค้นหารายการสินค้า']);
+    const productsPages = new Set([
+      'รายการสินค้า',
+      'ค้นหารายการสินค้า',
+      'รายการเคลื่อนไหวสินค้า',
+      'วัสดุสิ้นเปลืองและอื่นๆ',
+      'รับวัสดุสิ้นเปลืองเข้า stock',
+    ]);
 
     if (customersPages.has(active)) document.body.dataset.pageKey = 'customers';
     else if (productsPages.has(active))
@@ -304,14 +323,20 @@ export default function App() {
         );
       case 'สร้างรายชื่อลูกค้าใหม่':
         return (
-          <div>
-            <h1>สร้างรายชื่อลูกค้าใหม่</h1>
-            <button
-              className="button"
-              onClick={() => setActive('รายชื่อลูกค้า')}
-            >
-              กลับ
-            </button>
+          <>
+            <div className="page-sticky-header">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <h1 className="page-title">สร้างรายชื่อลูกค้าใหม่</h1>
+              </div>
+            </div>
             <CreateCustomer
               initial={null}
               initialConditions={{}}
@@ -322,7 +347,7 @@ export default function App() {
                 openModal('สร้างรายชื่อลูกค้าสำเร็จ');
               }}
             />
-          </div>
+          </>
         );
       case 'แก้ไขรายชื่อลูกค้า':
         if (!editingCustomer) {
@@ -373,6 +398,9 @@ export default function App() {
               setEditingPurchaseOrder(null);
               setActive('สร้างรายการสั่งซื้อ');
             }}
+            onViewSuppliers={() => {
+              setActive('รายการผู้จำหน่าย');
+            }}
             onBackToPurchaseHome={() => {
               setActive('รายการสินค้า');
             }}
@@ -380,12 +408,185 @@ export default function App() {
               setEditingPurchaseOrder(order);
               setActive('แก้ไขรายการสั่งซื้อ');
             }}
+            onReceive={({ orderId, items }) => {
+              const idKey = String(orderId || '').trim();
+              const lines = Array.isArray(items) ? items : [];
+              const toNumber = (n) => {
+                const v = Number(n);
+                return Number.isFinite(v) ? v : 0;
+              };
+
+              if (!idKey) {
+                openModal('รับสินค้าไม่สำเร็จ: ไม่พบเลขที่ใบสั่งซื้อ');
+                return;
+              }
+
+              if (!lines.length) {
+                openModal('รับสินค้าไม่สำเร็จ: ไม่พบรายการรับเข้า');
+                return;
+              }
+
+              const receivedAt = new Date().toISOString().slice(0, 10);
+
+              // 1) Update purchase order receivedQty + status
+              setPurchaseOrders((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                const next = list.map((po) => {
+                  const poId = String(po?.id || po?.poNo || '').trim();
+                  if (poId !== idKey) return po;
+
+                  const poItems = Array.isArray(po?.items) ? po.items : [];
+                  const qtyByCode = new Map(
+                    lines
+                      .map((l) => ({
+                        code: String(l?.code || '').trim(),
+                        qty: toNumber(l?.qty),
+                      }))
+                      .filter((l) => l.code && l.qty > 0)
+                      .map((l) => [l.code, l.qty])
+                  );
+
+                  const updatedItems = poItems.map((it) => {
+                    const code = String(it?.code || '').trim();
+                    const orderedQty = toNumber(it?.qty);
+                    const currentReceived = toNumber(it?.receivedQty);
+                    const add = qtyByCode.get(code) ?? 0;
+                    if (!code || add <= 0) return it;
+
+                    const nextReceived = Math.min(
+                      orderedQty,
+                      currentReceived + add
+                    );
+                    return {
+                      ...it,
+                      receivedQty: nextReceived,
+                      receivedAt,
+                    };
+                  });
+
+                  const orderedTotal = updatedItems.reduce(
+                    (acc, it) => acc + toNumber(it?.qty),
+                    0
+                  );
+                  const receivedTotal = updatedItems.reduce(
+                    (acc, it) => acc + toNumber(it?.receivedQty),
+                    0
+                  );
+
+                  let nextStatus = String(po?.status || '');
+                  if (orderedTotal > 0 && receivedTotal >= orderedTotal) {
+                    nextStatus = 'รับของแล้ว';
+                  } else if (
+                    receivedTotal > 0 &&
+                    receivedTotal < orderedTotal
+                  ) {
+                    nextStatus = 'รับบางส่วน';
+                  }
+
+                  return {
+                    ...po,
+                    items: updatedItems,
+                    status: nextStatus,
+                    lastReceivedAt: receivedAt,
+                  };
+                });
+                return next;
+              });
+
+              // 2) Update product stock
+              const missing = [];
+              setProducts((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                const addByCode = new Map(
+                  lines
+                    .map((l) => ({
+                      code: String(l?.code || '').trim(),
+                      qty: toNumber(l?.qty),
+                    }))
+                    .filter((l) => l.code && l.qty > 0)
+                    .map((l) => [l.code, l.qty])
+                );
+
+                const next = list.map((p) => {
+                  const code = String(p?.code || '').trim();
+                  const add = addByCode.get(code) ?? 0;
+                  if (!code || add <= 0) return p;
+
+                  const currentStock = Number.isFinite(Number(p?.stock))
+                    ? Number(p.stock)
+                    : 0;
+                  const nextStock = currentStock + add;
+
+                  return stripProductPhotoUrl({
+                    ...p,
+                    stock: nextStock,
+                    status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                    updatedAt: receivedAt,
+                  });
+                });
+
+                // collect missing codes
+                for (const [code] of addByCode.entries()) {
+                  if (
+                    !next.some((p) => String(p?.code || '').trim() === code)
+                  ) {
+                    missing.push(code);
+                  }
+                }
+
+                return next.map(stripProductPhotoUrl);
+              });
+
+              if (missing.length) {
+                openModal(
+                  `รับสินค้าแล้ว แต่ไม่พบสินค้าในคลังสำหรับรหัส: ${missing.join(', ')}`
+                );
+              } else {
+                openModal('รับสินค้าเรียบร้อย');
+              }
+            }}
+          />
+        );
+
+      case 'รายการผู้จำหน่าย':
+        return (
+          <Suppliers
+            suppliers={suppliers}
+            onCreateNew={() => setActive('สร้างรายการผู้จำหน่าย')}
+            onBack={() => setActive('รายการสั่งซื้อสินค้า')}
+          />
+        );
+
+      case 'สร้างรายการผู้จำหน่าย':
+        return (
+          <CreateSupplier
+            onCancel={() => setActive('รายการผู้จำหน่าย')}
+            onSave={(data) => {
+              const id = String(data?.id || '').trim();
+              if (!id) {
+                openModal('บันทึกไม่สำเร็จ: ไม่พบ ID ผู้จำหน่าย');
+                return;
+              }
+
+              setSuppliers((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                if (list.some((s) => String(s?.id || '').trim() === id)) {
+                  openModal('บันทึกไม่สำเร็จ: ID ซ้ำ');
+                  return list;
+                }
+                return [...list, data];
+              });
+
+              setActive('รายการผู้จำหน่าย');
+              openModal('สร้างรายการผู้จำหน่ายสำเร็จ');
+            }}
           />
         );
       case 'สร้างรายการสั่งซื้อ':
         return (
           <CreatePurchaseOrder
             products={products}
+            suppliers={suppliers}
             onCancel={() => setActive('รายการสั่งซื้อสินค้า')}
             onSave={(data) => {
               console.log('สร้างรายการสั่งซื้อ:', data);
@@ -427,6 +628,7 @@ export default function App() {
             title="แก้ไขรายการสั่งซื้อ"
             initial={editingPurchaseOrder}
             products={products}
+            suppliers={suppliers}
             onCancel={() => {
               setEditingPurchaseOrder(null);
               setActive('รายการสั่งซื้อสินค้า');
@@ -473,6 +675,130 @@ export default function App() {
             }}
             onReceiveStock={() => {
               setActive('รับสินค้าเข้า stock');
+            }}
+            onViewMovements={() => {
+              setActive('รายการเคลื่อนไหวสินค้า');
+            }}
+            onViewConsumables={() => {
+              setActive('วัสดุสิ้นเปลืองและอื่นๆ');
+            }}
+          />
+        );
+      case 'วัสดุสิ้นเปลืองและอื่นๆ':
+        return (
+          <Consumables
+            items={consumables}
+            onItemsChange={setConsumables}
+            onReceiveStock={() => setActive('รับวัสดุสิ้นเปลืองเข้า stock')}
+            onBack={() => setActive('รายการสินค้า')}
+          />
+        );
+      case 'รายการเคลื่อนไหวสินค้า':
+        return (
+          <ProductMovements
+            products={products}
+            onBack={() => setActive('รายการสินค้า')}
+            onSaveCosts={({ code, cost }) => {
+              const codeKey = String(code || '').trim();
+              const costNum = Number(cost);
+              if (!codeKey) {
+                openModal('บันทึกต้นทุนไม่สำเร็จ: ไม่พบรหัสสินค้า');
+                return;
+              }
+              if (!Number.isFinite(costNum) || costNum <= 0) {
+                openModal(
+                  `บันทึกต้นทุนไม่สำเร็จ: ต้นทุนไม่ถูกต้อง (${codeKey})`
+                );
+                return;
+              }
+
+              setProducts((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                const exists = src.some(
+                  (p) => String(p?.code || '').trim() === codeKey
+                );
+                if (!exists) {
+                  openModal(`บันทึกต้นทุนไม่สำเร็จ: ไม่พบสินค้า ${codeKey}`);
+                  return src;
+                }
+
+                return src.map((p) => {
+                  const c = String(p?.code || '').trim();
+                  if (c !== codeKey) return p;
+                  return stripProductPhotoUrl({
+                    ...p,
+                    cost: costNum,
+                  });
+                });
+              });
+
+              openModal(
+                `บันทึกต้นทุนสำเร็จ: ${codeKey} = ${costNum.toLocaleString('th-TH')}`
+              );
+            }}
+          />
+        );
+
+      case 'รับวัสดุสิ้นเปลืองเข้า stock':
+        return (
+          <ReceiveConsumablesStock
+            existingConsumables={consumables}
+            onCancel={() => setActive('วัสดุสิ้นเปลืองและอื่นๆ')}
+            onReceive={({ code, qty }) => {
+              const codeKey = String(code || '').trim();
+              const qtyNum = Number(qty);
+              if (!codeKey) {
+                openModal('รับเข้า stock ไม่สำเร็จ: ไม่พบรหัสวัสดุ');
+                return;
+              }
+              if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+                openModal('รับเข้า stock ไม่สำเร็จ: จำนวนไม่ถูกต้อง');
+                return;
+              }
+
+              if (
+                !(Array.isArray(consumables) ? consumables : []).some(
+                  (it) => String(it?.code || '').trim() === codeKey
+                )
+              ) {
+                openModal(
+                  `รับเข้า stock ไม่สำเร็จ: ไม่พบวัสดุสิ้นเปลือง ${codeKey}`
+                );
+                return;
+              }
+
+              const receivedAt = new Date().toISOString().slice(0, 10);
+
+              setConsumables((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                return list.map((it) => {
+                  if (String(it?.code || '').trim() !== codeKey) return it;
+
+                  const currentStock = Number.isFinite(Number(it?.stock))
+                    ? Number(it.stock)
+                    : 0;
+                  const nextStock = currentStock + qtyNum;
+                  const stockLots = Array.isArray(it?.stockLots)
+                    ? it.stockLots
+                    : [];
+
+                  return {
+                    ...it,
+                    stock: nextStock,
+                    status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                    updatedAt: receivedAt,
+                    stockLots: [
+                      ...stockLots,
+                      {
+                        qty: qtyNum,
+                        receivedAt,
+                      },
+                    ],
+                  };
+                });
+              });
+
+              openModal(`รับเข้า stock สำเร็จ: ${codeKey} +${qtyNum}`);
             }}
           />
         );

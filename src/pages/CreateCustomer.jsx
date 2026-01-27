@@ -5,7 +5,6 @@ export default function CreateCustomer({
   onCancel,
   onSave,
   initial,
-  title,
   onDefineConditions,
   initialConditions,
 }) {
@@ -346,20 +345,6 @@ export default function CreateCustomer({
 
   return (
     <section>
-      <div className="page-sticky-header">
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-          }}
-        >
-          <h1 className="page-title" style={{ margin: 0 }}>
-            {title || 'สร้างรายชื่อลูกค้าใหม่'}
-          </h1>
-        </div>
-      </div>
       <form
         onSubmit={submit}
         className="form-card"
@@ -744,9 +729,11 @@ export default function CreateCustomer({
               กำหนดเงื่อนไขลูกค้า
             </button>
           ) : null}
-          <button type="button" className="button" onClick={onCancel}>
-            ยกเลิก
-          </button>
+          {onCancel ? (
+            <button type="button" className="button" onClick={onCancel}>
+              ยกเลิก
+            </button>
+          ) : null}
           <button type="submit" className="button">
             บันทึก
           </button>

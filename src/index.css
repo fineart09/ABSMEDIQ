@@ -1,7 +1,13 @@
 /* Startup page styles for index.html */
 .startup-container {
-  font-family: 'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto,
-    Arial, sans-serif;
+  font-family:
+    'Noto Sans Thai',
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
   padding: 24px;
   color: #111827;
   max-width: 900px;
@@ -88,11 +94,13 @@ body,
 }
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 :root {
-  --app-font: 'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto,
-    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial,
+  --app-font:
+    'Noto Sans Thai', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+    Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial,
     'Apple Color Emoji', 'Segoe UI Emoji';
   font-family: var(--app-font) !important;
 }
@@ -116,6 +124,7 @@ body {
   font-family: inherit;
   background: #ffffff;
   color: #111827;
+  overflow-x: clip;
 }
 
 body {
@@ -233,7 +242,10 @@ body[data-page-key='products']::before {
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 .logout-button:hover {
   background: rgba(220, 38, 38, 0.14);
@@ -273,7 +285,10 @@ body[data-page-key='products']::before {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
-  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 /* Parent dropdown button (label + caret) as one pill */
@@ -400,7 +415,8 @@ body[data-page-key='products']::before {
 }
 .modal-body {
   padding: 1rem;
-  overflow: auto; /* allow content to scroll within popup */
+  overflow-y: auto; /* allow content to scroll within popup */
+  overflow-x: hidden; /* prevent horizontal scrollbar */
   flex: 1;
   min-height: 0; /* fix flexbox overflow issues */
 }
@@ -500,7 +516,8 @@ p {
   display: block;
   width: 1.5rem;
   height: 1.1rem;
-  background: linear-gradient(#158990, #158990) 0 0 / 100% 2px no-repeat,
+  background:
+    linear-gradient(#158990, #158990) 0 0 / 100% 2px no-repeat,
     linear-gradient(#158990, #158990) 0 50% / 100% 2px no-repeat,
     linear-gradient(#158990, #158990) 0 100% / 100% 2px no-repeat;
 }
@@ -601,7 +618,10 @@ p {
   color: #158990;
   font-weight: 700;
   cursor: pointer;
-  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 .button:hover {
   background: rgba(21, 137, 144, 0.14);
@@ -773,6 +793,11 @@ p {
   background: rgba(107, 114, 128, 0.1);
   border-color: rgba(107, 114, 128, 0.22);
 }
+.badge--partial {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.28);
+}
 .badge--delinquent {
   color: #b91c1c;
   background: rgba(220, 38, 38, 0.08);
@@ -782,6 +807,8 @@ p {
 /* ---- Form styles (Create/Edit Customer) ---- */
 .form-card {
   width: min(900px, 100%);
+  max-width: 100%;
+  box-sizing: border-box;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;

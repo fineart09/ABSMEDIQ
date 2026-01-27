@@ -32,13 +32,24 @@ export default function CreatePurchaseOrder({
   title = 'สร้างรายการสั่งซื้อ',
   initial,
   products,
+  suppliers,
   onCancel,
   onSave,
 }) {
+  const isEdit = Boolean(initial);
+
   const productList = useMemo(
     () => (Array.isArray(products) ? products : []),
     [products]
   );
+
+  const supplierOptions = useMemo(() => {
+    const list = Array.isArray(suppliers) ? suppliers : [];
+    const names = list.map((s) => String(s?.name || '').trim()).filter(Boolean);
+    const unique = Array.from(new Set(names));
+    unique.sort((a, b) => a.localeCompare(b, 'th'));
+    return unique;
+  }, [suppliers]);
 
   const [poNo, setPoNo] = useState(initial?.poNo || nextPoNo());
   const [orderedAt, setOrderedAt] = useState(initial?.orderedAt || todayISO());
@@ -58,7 +69,16 @@ export default function CreatePurchaseOrder({
   );
 
   useEffect(() => {
-    if (!initial) return;
+    if (!initial) {
+      setPoNo(nextPoNo());
+      setOrderedAt(todayISO());
+      setSupplier('');
+      setStatus('ร่าง');
+      setNotes('');
+      setItems([]);
+      return;
+    }
+
     setPoNo(initial?.poNo || nextPoNo());
     setOrderedAt(initial?.orderedAt || todayISO());
     setSupplier(initial?.supplier || '');
@@ -132,7 +152,7 @@ export default function CreatePurchaseOrder({
       poNo: String(poNo).trim(),
       orderedAt: String(orderedAt).trim(),
       supplier: String(supplier).trim(),
-      status: String(status).trim(),
+      status: isEdit ? String(status).trim() : 'ร่าง',
       notes: String(notes || '').trim(),
       items: (Array.isArray(items) ? items : [])
         .map((it) => ({
@@ -184,33 +204,58 @@ export default function CreatePurchaseOrder({
 
           <label htmlFor="supplier">ผู้จำหน่าย</label>
           <div>
-            <input
-              id="supplier"
-              className="input"
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="เช่น ABSMEDIQ / MedSupply"
-            />
+            {supplierOptions.length ? (
+              <select
+                id="supplier"
+                className="select"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                aria-label="ผู้จำหน่าย"
+              >
+                <option value="">- เลือกผู้จำหน่าย -</option>
+                {supplier &&
+                !supplierOptions.includes(String(supplier).trim()) ? (
+                  <option value={supplier}>{supplier}</option>
+                ) : null}
+                {supplierOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="supplier"
+                className="input"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                placeholder="เช่น ABSMEDIQ / MedSupply"
+              />
+            )}
             {validation.supplier ? (
               <div className="field-error">{validation.supplier}</div>
             ) : null}
           </div>
 
-          <label htmlFor="status">สถานะ</label>
-          <div>
-            <select
-              id="status"
-              className="select"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {['ร่าง', 'สั่งซื้อแล้ว', 'รับของแล้ว'].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isEdit ? (
+            <>
+              <label htmlFor="status">สถานะ</label>
+              <div>
+                <select
+                  id="status"
+                  className="select"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  {['ร่าง', 'สั่งซื้อแล้ว', 'รับของแล้ว'].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : null}
 
           <label htmlFor="notes">หมายเหตุ</label>
           <div>
