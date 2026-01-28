@@ -47,7 +47,6 @@ export default function CreateSupplier({ onCancel, onSave, initial, title }) {
     const next = {};
 
     if (!String(form.name || '').trim()) next.name = 'จำเป็นต้องกรอก';
-    if (!String(form.address || '').trim()) next.address = 'จำเป็นต้องกรอก';
 
     const taxId = normalizeTaxId(form.taxId);
     if (taxId && taxId.length !== 13) next.taxId = 'กรุณากรอก 13 หลัก';
@@ -60,7 +59,8 @@ export default function CreateSupplier({ onCancel, onSave, initial, title }) {
     e.preventDefault();
     if (!validate()) return;
 
-    const id = generateSupplierId();
+    const existingId = String(initial?.id || '').trim();
+    const id = existingId || generateSupplierId();
 
     onSave?.({
       id,
@@ -90,7 +90,7 @@ export default function CreateSupplier({ onCancel, onSave, initial, title }) {
             ) : null}
           </div>
 
-          <label>ที่อยู่ *</label>
+          <label>ที่อยู่</label>
           <div>
             <textarea
               className="input"

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const CATEGORY_OPTIONS = ['เวชภัณฑ์', 'เวชภัณฑ์', 'วัสดุสำนักงาน', 'อื่นๆ'];
+const CATEGORY_OPTIONS = [
+  'เวชภัณฑ์',
+  'วัสดุสิ้นเปลือง',
+  'วัสดุสำนักงาน',
+  'อื่นๆ',
+];
 
 const WAREHOUSE_OPTIONS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 

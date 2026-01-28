@@ -16,7 +16,7 @@ const normalizeSuppliers = (src) => {
   }));
 };
 
-export default function Suppliers({ suppliers, onCreateNew, onBack }) {
+export default function Suppliers({ suppliers, onCreateNew, onBack, onEdit }) {
   const stickyRef = useRef(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -167,6 +167,7 @@ export default function Suppliers({ suppliers, onCreateNew, onBack }) {
               <th style={{ padding: 8 }}>ผู้จำหน่าย</th>
               <th style={{ padding: 8 }}>ที่อยู่</th>
               <th style={{ padding: 8, width: 180 }}>เลขประจำตัวผู้เสียภาษี</th>
+              <th style={{ padding: 8, width: 110 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -179,12 +180,21 @@ export default function Suppliers({ suppliers, onCreateNew, onBack }) {
                 <td style={{ padding: 8 }}>{s.name || '-'}</td>
                 <td style={{ padding: 8 }}>{s.address || '-'}</td>
                 <td style={{ padding: 8 }}>{s.taxId || '-'}</td>
+                <td style={{ padding: 8, textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => onEdit?.(s)}
+                  >
+                    แก้ไข
+                  </button>
+                </td>
               </tr>
             ))}
 
             {paged.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: 16, color: '#6b7280' }}>
+                <td colSpan={5} style={{ padding: 16, color: '#6b7280' }}>
                   ไม่พบรายการ
                 </td>
               </tr>

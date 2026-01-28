@@ -15,6 +15,7 @@ import ReceiveStock from './pages/ReceiveStock.jsx';
 import ProductMovements from './pages/ProductMovements.jsx';
 import Consumables from './pages/Consumables.jsx';
 import ReceiveConsumablesStock from './pages/ReceiveConsumablesStock.jsx';
+import Ingredients from './pages/Ingredients.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
@@ -57,9 +58,11 @@ export default function App() {
 
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
+  const [movementFilterCode, setMovementFilterCode] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
+  const [editingSupplier, setEditingSupplier] = useState(null);
   const [products, setProducts] = useState(() => {
     const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
     return src.map(stripProductPhotoUrl);
@@ -139,6 +142,7 @@ export default function App() {
       'รายการสินค้า',
       'ค้นหารายการสินค้า',
       'รายการเคลื่อนไหวสินค้า',
+      'Ingredient',
       'วัสดุสิ้นเปลืองและอื่นๆ',
       'รับวัสดุสิ้นเปลืองเข้า stock',
     ]);
@@ -405,6 +409,19 @@ export default function App() {
               setActive('รายการสินค้า');
             }}
             onEdit={(order) => {
+              const status = String(order?.status || '').trim();
+              const isLocked = [
+                'สั่งซื้อแล้ว',
+                'รับของแล้ว',
+                'รับบางส่วน',
+              ].includes(status);
+
+              if (isLocked) {
+                openModal(
+                  'ไม่สามารถแก้ไขรายการสั่งซื้อได้เมื่อสถานะเป็น สั่งซื้อแล้ว/รับของแล้ว/รับบางส่วน'
+                );
+                return;
+              }
               setEditingPurchaseOrder(order);
               setActive('แก้ไขรายการสั่งซื้อ');
             }}
@@ -426,7 +443,59 @@ export default function App() {
                 return;
               }
 
+              // Prevent duplicate receiving (fully received orders)
+              const currentOrders = Array.isArray(purchaseOrders)
+                ? purchaseOrders
+                : [];
+              const target = currentOrders.find((po) => {
+                const poId = String(po?.id || po?.poNo || '').trim();
+                return poId === idKey;
+              });
+
+              if (target) {
+                const status = String(target?.status || '').trim();
+                const targetItems = Array.isArray(target?.items)
+                  ? target.items
+                  : [];
+
+                const fullyByStatus = status === 'รับของแล้ว';
+                const fullyByItems =
+                  targetItems.length > 0 &&
+                  targetItems.every((it) => {
+                    const orderedQty = toNumber(it?.qty);
+                    const receivedQty = toNumber(it?.receivedQty);
+                    if (orderedQty <= 0) return true;
+                    return receivedQty >= orderedQty;
+                  });
+
+                if (fullyByStatus || fullyByItems) {
+                  openModal('ใบสั่งซื้อนี้รับครบแล้ว จึงไม่สามารถรับซ้ำได้');
+                  return;
+                }
+              }
+
               const receivedAt = new Date().toISOString().slice(0, 10);
+
+              const receivedByCode = new Map();
+              for (const l of lines) {
+                const code = String(l?.code || '').trim();
+                const qty = toNumber(l?.qty);
+                if (!code || qty <= 0) continue;
+
+                const lotNo = String(l?.lotNo ?? '').trim();
+                const expiryDate = String(l?.expiryDate ?? '').trim();
+                const existing = receivedByCode.get(code) || {
+                  qty: 0,
+                  lotNo: '',
+                  expiryDate: '',
+                };
+
+                receivedByCode.set(code, {
+                  qty: existing.qty + qty,
+                  lotNo: lotNo || existing.lotNo,
+                  expiryDate: expiryDate || existing.expiryDate,
+                });
+              }
 
               // 1) Update purchase order receivedQty + status
               setPurchaseOrders((prev) => {
@@ -436,31 +505,38 @@ export default function App() {
                   if (poId !== idKey) return po;
 
                   const poItems = Array.isArray(po?.items) ? po.items : [];
-                  const qtyByCode = new Map(
-                    lines
-                      .map((l) => ({
-                        code: String(l?.code || '').trim(),
-                        qty: toNumber(l?.qty),
-                      }))
-                      .filter((l) => l.code && l.qty > 0)
-                      .map((l) => [l.code, l.qty])
-                  );
-
                   const updatedItems = poItems.map((it) => {
                     const code = String(it?.code || '').trim();
                     const orderedQty = toNumber(it?.qty);
                     const currentReceived = toNumber(it?.receivedQty);
-                    const add = qtyByCode.get(code) ?? 0;
+                    const meta = receivedByCode.get(code);
+                    const add = meta?.qty ?? 0;
                     if (!code || add <= 0) return it;
 
                     const nextReceived = Math.min(
                       orderedQty,
                       currentReceived + add
                     );
+
+                    const prevLots = Array.isArray(it?.receivedLots)
+                      ? it.receivedLots
+                      : [];
+
                     return {
                       ...it,
                       receivedQty: nextReceived,
                       receivedAt,
+                      receivedLots: [
+                        ...prevLots,
+                        {
+                          qty: add,
+                          receivedAt,
+                          ...(meta?.lotNo ? { lotNo: meta.lotNo } : null),
+                          ...(meta?.expiryDate
+                            ? { expiryDate: meta.expiryDate }
+                            : null),
+                        },
+                      ],
                     };
                   });
 
@@ -497,19 +573,10 @@ export default function App() {
               const missing = [];
               setProducts((prev) => {
                 const list = Array.isArray(prev) ? prev : [];
-                const addByCode = new Map(
-                  lines
-                    .map((l) => ({
-                      code: String(l?.code || '').trim(),
-                      qty: toNumber(l?.qty),
-                    }))
-                    .filter((l) => l.code && l.qty > 0)
-                    .map((l) => [l.code, l.qty])
-                );
-
                 const next = list.map((p) => {
                   const code = String(p?.code || '').trim();
-                  const add = addByCode.get(code) ?? 0;
+                  const meta = receivedByCode.get(code);
+                  const add = meta?.qty ?? 0;
                   if (!code || add <= 0) return p;
 
                   const currentStock = Number.isFinite(Number(p?.stock))
@@ -517,16 +584,32 @@ export default function App() {
                     : 0;
                   const nextStock = currentStock + add;
 
+                  const stockLots = Array.isArray(p?.stockLots)
+                    ? p.stockLots
+                    : [];
+
                   return stripProductPhotoUrl({
                     ...p,
                     stock: nextStock,
                     status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
                     updatedAt: receivedAt,
+                    stockLots: [
+                      ...stockLots,
+                      {
+                        qty: add,
+                        receivedAt,
+                        ...(meta?.lotNo ? { lotNo: meta.lotNo } : null),
+                        ...(meta?.expiryDate
+                          ? { expiryDate: meta.expiryDate }
+                          : null),
+                        orderId: idKey,
+                      },
+                    ],
                   });
                 });
 
                 // collect missing codes
-                for (const [code] of addByCode.entries()) {
+                for (const [code] of receivedByCode.entries()) {
                   if (
                     !next.some((p) => String(p?.code || '').trim() === code)
                   ) {
@@ -553,6 +636,10 @@ export default function App() {
           <Suppliers
             suppliers={suppliers}
             onCreateNew={() => setActive('สร้างรายการผู้จำหน่าย')}
+            onEdit={(s) => {
+              setEditingSupplier(s);
+              setActive('แก้ไขรายการผู้จำหน่าย');
+            }}
             onBack={() => setActive('รายการสั่งซื้อสินค้า')}
           />
         );
@@ -582,6 +669,61 @@ export default function App() {
             }}
           />
         );
+
+      case 'แก้ไขรายการผู้จำหน่าย': {
+        if (!editingSupplier) {
+          return (
+            <>
+              <h1>แก้ไขรายการผู้จำหน่าย</h1>
+              <p>กรุณาเลือกรายการจากหน้า “รายการผู้จำหน่าย” ก่อน</p>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setActive('รายการผู้จำหน่าย')}
+              >
+                ไปที่รายการผู้จำหน่าย
+              </button>
+            </>
+          );
+        }
+
+        return (
+          <CreateSupplier
+            title="แก้ไขรายการผู้จำหน่าย"
+            initial={editingSupplier}
+            onCancel={() => {
+              setEditingSupplier(null);
+              setActive('รายการผู้จำหน่าย');
+            }}
+            onSave={(data) => {
+              const id = String(data?.id || '').trim();
+              if (!id) {
+                openModal('บันทึกไม่สำเร็จ: ไม่พบ ID ผู้จำหน่าย');
+                return;
+              }
+
+              let found = false;
+              setSuppliers((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                const next = list.map((s) => {
+                  if (String(s?.id || '').trim() !== id) return s;
+                  found = true;
+                  return { ...s, ...data, id };
+                });
+                return found ? next : [...list, data];
+              });
+
+              setEditingSupplier(null);
+              setActive('รายการผู้จำหน่าย');
+              openModal(
+                found
+                  ? 'แก้ไขรายการผู้จำหน่ายสำเร็จ'
+                  : 'แก้ไขสำเร็จ (เพิ่มเป็นรายการใหม่)'
+              );
+            }}
+          />
+        );
+      }
       case 'สร้างรายการสั่งซื้อ':
         return (
           <CreatePurchaseOrder
@@ -607,7 +749,7 @@ export default function App() {
             }}
           />
         );
-      case 'แก้ไขรายการสั่งซื้อ':
+      case 'แก้ไขรายการสั่งซื้อ': {
         if (!editingPurchaseOrder) {
           return (
             <>
@@ -623,6 +765,31 @@ export default function App() {
             </>
           );
         }
+
+        const status = String(editingPurchaseOrder?.status || '').trim();
+        const isLocked = ['สั่งซื้อแล้ว', 'รับของแล้ว', 'รับบางส่วน'].includes(
+          status
+        );
+
+        if (isLocked) {
+          return (
+            <>
+              <h1>แก้ไขรายการสั่งซื้อ</h1>
+              <p>รายการนี้อยู่ในสถานะ “{status || '-'}” จึงไม่สามารถแก้ไขได้</p>
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setEditingPurchaseOrder(null);
+                  setActive('รายการสั่งซื้อสินค้า');
+                }}
+              >
+                กลับไปหน้ารายการสั่งซื้อสินค้า
+              </button>
+            </>
+          );
+        }
+
         return (
           <CreatePurchaseOrder
             title="แก้ไขรายการสั่งซื้อ"
@@ -632,6 +799,33 @@ export default function App() {
             onCancel={() => {
               setEditingPurchaseOrder(null);
               setActive('รายการสั่งซื้อสินค้า');
+            }}
+            onDelete={(order) => {
+              const current = order || editingPurchaseOrder;
+              const currentStatus = String(current?.status || '').trim();
+              if (currentStatus !== 'ร่าง') {
+                openModal(
+                  'ลบไม่สำเร็จ: สามารถลบได้เฉพาะใบสั่งซื้อสถานะ “ร่าง”'
+                );
+                return;
+              }
+
+              const idKey = String(current?.id || current?.poNo || '').trim();
+              if (!idKey) {
+                openModal('ลบไม่สำเร็จ: ไม่พบเลขที่ใบสั่งซื้อ');
+                return;
+              }
+
+              setPurchaseOrders((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                return list.filter(
+                  (po) => String(po?.id || po?.poNo || '').trim() !== idKey
+                );
+              });
+
+              setEditingPurchaseOrder(null);
+              setActive('รายการสั่งซื้อสินค้า');
+              openModal('ลบใบสั่งซื้อเรียบร้อย');
             }}
             onSave={(data) => {
               console.log('แก้ไขรายการสั่งซื้อ:', data);
@@ -657,6 +851,7 @@ export default function App() {
             }}
           />
         );
+      }
       case 'รายการสินค้า':
       case 'ค้นหารายการสินค้า':
         return (
@@ -670,13 +865,18 @@ export default function App() {
               setEditingProduct(null);
               setActive('สร้างรายการสินค้าใหม่');
             }}
+            onViewIngredients={() => {
+              setActive('Ingredient');
+            }}
             onPurchase={() => {
               setActive('รายการสั่งซื้อสินค้า');
             }}
             onReceiveStock={() => {
               setActive('รับสินค้าเข้า stock');
             }}
-            onViewMovements={() => {
+            onViewMovements={(product) => {
+              const code = String(product?.code || '').trim();
+              setMovementFilterCode(code || null);
               setActive('รายการเคลื่อนไหวสินค้า');
             }}
             onViewConsumables={() => {
@@ -684,6 +884,8 @@ export default function App() {
             }}
           />
         );
+      case 'Ingredient':
+        return <Ingredients onBack={() => setActive('รายการสินค้า')} />;
       case 'วัสดุสิ้นเปลืองและอื่นๆ':
         return (
           <Consumables
@@ -697,6 +899,7 @@ export default function App() {
         return (
           <ProductMovements
             products={products}
+            filterCode={movementFilterCode}
             onBack={() => setActive('รายการสินค้า')}
             onSaveCosts={({ code, cost }) => {
               const codeKey = String(code || '').trim();

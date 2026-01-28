@@ -158,19 +158,81 @@ function randomDate(seed) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function addDaysISO(iso, days) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso || '');
+    d.setDate(d.getDate() + Number(days || 0));
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return String(iso || '');
+  }
+}
+
+function lotNoFromSeed(seed) {
+  const yy = String(new Date().getFullYear()).slice(-2);
+  const n = randomInt(seed * 9.13, 1, 9999);
+  return `LOT-${yy}-${String(n).padStart(4, '0')}`;
+}
+
+function expiryFromReceivedAt(receivedAt, seed) {
+  // 3-24 months after received date
+  const addDays = randomInt(seed * 4.77, 90, 720);
+  return addDaysISO(receivedAt, addDays);
+}
+
+function generateStockLots({ stock, seedBase }) {
+  const total = Number(stock) || 0;
+  if (total <= 0) return [];
+
+  const lotsCount = Math.max(1, Math.min(3, randomInt(seedBase * 1.9, 1, 3)));
+  let remaining = total;
+  const lots = [];
+
+  for (let i = 0; i < lotsCount; i++) {
+    const minLeft = lotsCount - i - 1;
+    const maxForThis = Math.max(1, remaining - minLeft);
+    const qty =
+      i === lotsCount - 1
+        ? remaining
+        : randomInt(seedBase * 7.7 + i, 1, maxForThis);
+    remaining = Math.max(0, remaining - qty);
+
+    const receivedAt = randomDate(seedBase * 100 + i * 13.3);
+    const lotNo = lotNoFromSeed(seedBase * 31.1 + i * 5.7 + qty);
+    const expiryDate = expiryFromReceivedAt(
+      receivedAt,
+      seedBase * 53.9 + i * 11.2
+    );
+
+    lots.push({
+      qty,
+      receivedAt,
+      lotNo,
+      expiryDate,
+    });
+  }
+
+  return lots;
+}
+
 const ENRICHED_PRODUCTS = MOCK_PRODUCTS_FULL.map((p, i) => {
   const stock = randomInt(i + 1, 0, 120);
   const status =
     stock === 0
       ? 'ไม่ใช้งาน'
       : seeded((i + 1) * 1.414) < 0.85
-      ? 'ใช้งาน'
-      : 'ไม่ใช้งาน';
+        ? 'ใช้งาน'
+        : 'ไม่ใช้งาน';
+
+  const stockLots = generateStockLots({ stock, seedBase: i + 1 });
+
   return {
     ...p,
     stock,
     status,
     updatedAt: randomDate(i + 1),
+    stockLots,
   };
 });
 

@@ -41,7 +41,6 @@ export default function EditProduct({
         lowStockAlertEnabled: false,
         lowStockAlertThreshold: '',
         allowNegativeStockSale: false,
-        supplier: '',
         status: 'ใช้งาน',
         description: '',
       };
@@ -58,7 +57,6 @@ export default function EditProduct({
       lowStockAlertEnabled: Boolean(initial.lowStockAlertEnabled),
       lowStockAlertThreshold: toNumber(initial.lowStockAlertThreshold),
       allowNegativeStockSale: Boolean(initial.allowNegativeStockSale),
-      supplier: initial.supplier || '',
       status: initial.status || 'ใช้งาน',
       description: initial.description || '',
     };
@@ -406,15 +404,6 @@ export default function EditProduct({
               <div className="field-error">{errors.lowStockAlertThreshold}</div>
             ) : null}
           </div>
-
-          <label>ผู้จำหน่าย</label>
-          <input
-            className="input"
-            value={form.supplier}
-            onChange={update('supplier')}
-            placeholder="เช่น ABSMEDIQ"
-            aria-label="ผู้จำหน่าย"
-          />
 
           <label>รายละเอียด</label>
           <textarea

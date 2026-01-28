@@ -34,6 +34,7 @@ export default function CreatePurchaseOrder({
   products,
   suppliers,
   onCancel,
+  onDelete,
   onSave,
 }) {
   const isEdit = Boolean(initial);
@@ -431,17 +432,45 @@ export default function CreatePurchaseOrder({
           </div>
         </div>
 
-        <div className="form-actions" style={{ marginTop: 16 }}>
-          <button type="button" className="button" onClick={() => onCancel?.()}>
-            ยกเลิก
-          </button>
-          <button
-            type="submit"
-            className="button"
-            disabled={Object.keys(validation).length > 0}
-          >
-            บันทึก
-          </button>
+        <div
+          className="form-actions"
+          style={{ marginTop: 16, justifyContent: 'space-between' }}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {isEdit && String(status || '').trim() === 'ร่าง' && onDelete ? (
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={() => {
+                  const poLabel = String(poNo || initial?.poNo || '').trim();
+                  const ok = window.confirm(
+                    `ยืนยันลบใบสั่งซื้อ ${poLabel || ''} ?\nการลบจะไม่สามารถกู้คืนได้`
+                  );
+                  if (!ok) return;
+                  onDelete?.({ ...initial, poNo: poLabel || initial?.poNo });
+                }}
+              >
+                ลบใบสั่งซื้อ
+              </button>
+            ) : null}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onCancel?.()}
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="button"
+              disabled={Object.keys(validation).length > 0}
+            >
+              บันทึก
+            </button>
+          </div>
         </div>
       </form>
     </section>

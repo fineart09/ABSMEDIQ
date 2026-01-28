@@ -7,6 +7,18 @@ const toNumber = (n) => {
   return Number.isFinite(v) ? v : 0;
 };
 
+const getEffectiveReceivedQty = (poStatus, item) => {
+  const status = String(poStatus || '').trim();
+  const receivedQtyRaw = item?.receivedQty;
+  if (
+    status === 'รับของแล้ว' &&
+    (receivedQtyRaw === null || receivedQtyRaw === undefined)
+  ) {
+    return toNumber(item?.qty);
+  }
+  return toNumber(receivedQtyRaw);
+};
+
 const normalizeProducts = (src) => {
   const list = Array.isArray(src) ? src : [];
   const usedCodes = new Set();
@@ -29,27 +41,38 @@ const normalizeProducts = (src) => {
   });
 };
 
-export default function ProductMovements({ products, onBack, onSaveCosts }) {
+export default function ProductMovements({
+  products,
+  onBack,
+  onSaveCosts,
+  filterCode,
+}) {
   const [query, setQuery] = useState('');
-  const [costByRowId, setCostByRowId] = useState({});
+  const [unitCostByRowId, setUnitCostByRowId] = useState({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const getRowCostDraft = (row) => {
-    const raw = costByRowId[row.id];
+  useEffect(() => {
+    const code = String(filterCode || '').trim();
+    setQuery(code);
+  }, [filterCode]);
+
+  const getRowUnitCostDraft = (row) => {
+    const raw = unitCostByRowId[row.id];
     if (raw === undefined) return row.cost;
     return raw;
   };
 
   const saveRowCost = (row) => {
     const code = String(row?.code || '').trim();
-    const cost = Number(getRowCostDraft(row));
+    const cost = Number(getRowUnitCostDraft(row));
     if (!code || code === '-' || !Number.isFinite(cost) || cost <= 0) return;
     onSaveCosts?.({ code, cost });
   };
 
   const rows = useMemo(() => {
     const base = normalizeProducts(products);
+    const codeFilter = String(filterCode || '').trim();
 
     const stockLotMovements = base.flatMap((p) => {
       const lots = Array.isArray(p?.stockLots) ? p.stockLots : [];
@@ -85,33 +108,60 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
       const orderedAt = String(po?.orderedAt || '').trim();
       const items = Array.isArray(po?.items) ? po.items : [];
 
-      const isReceived = status === 'รับของแล้ว';
-      const type = isReceived ? 'รับเข้า (PO)' : 'สั่งซื้อ (PO)';
-
       return items.map((it, idx) => {
         const code = String(it?.code || '').trim();
         const name = String(it?.nameTh || it?.nameEn || '').trim() || '-';
-        const qty = Number.isFinite(Number(it?.qty)) ? Number(it.qty) : 0;
+        const orderedQty = Number.isFinite(Number(it?.qty))
+          ? Number(it.qty)
+          : 0;
         const unit = String(it?.unit || '').trim() || '-';
         const cost = toNumber(it?.price);
 
+        const receivedQty = getEffectiveReceivedQty(status, it);
+        const hasReceipt =
+          (status === 'รับของแล้ว' || status === 'รับบางส่วน') &&
+          receivedQty > 0;
+
+        const type = hasReceipt ? 'รับเข้า (PO)' : 'สั่งซื้อ (PO)';
+        const receiptDate =
+          String(it?.receivedAt || '').trim() ||
+          String(po?.lastReceivedAt || '').trim() ||
+          orderedAt;
+
+        const receivedLots = Array.isArray(it?.receivedLots)
+          ? it.receivedLots
+          : [];
+        const firstLot = receivedLots.find((l) => {
+          const lotNo = String(l?.lotNo || '').trim();
+          const expiryDate = String(l?.expiryDate || '').trim();
+          return Boolean(lotNo || expiryDate);
+        });
+        const lotNo = String(firstLot?.lotNo || '').trim();
+        const expiryDate = String(firstLot?.expiryDate || '').trim();
+
         return {
-          id: `PO__${poNo || 'unknown'}__${code || 'nocode'}__${orderedAt || 'nodate'}__${idx}`,
-          date: orderedAt || '-',
+          id: `PO__${poNo || 'unknown'}__${code || 'nocode'}__${
+            (hasReceipt ? receiptDate : orderedAt) || 'nodate'
+          }__${idx}`,
+          date: (hasReceipt ? receiptDate : orderedAt) || '-',
           type,
           code: code || '-',
           name,
-          qty,
+          qty: hasReceipt ? receivedQty : orderedQty,
           unit,
-          lotNo: '-',
-          expiryDate: '-',
+          lotNo: hasReceipt && lotNo ? lotNo : '-',
+          expiryDate: hasReceipt && lotNo ? expiryDate || '-' : '-',
           ref: poNo || '-',
           cost,
         };
       });
     });
 
-    const all = [...stockLotMovements, ...poMovements];
+    let all = [...stockLotMovements, ...poMovements];
+
+    if (codeFilter) {
+      all = all.filter((r) => String(r?.code || '').trim() === codeFilter);
+    }
 
     all.sort((a, b) =>
       String(b.date || '').localeCompare(String(a.date || ''))
@@ -139,7 +189,7 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
           .includes(q)
       );
     });
-  }, [products, query]);
+  }, [products, query, filterCode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -170,7 +220,7 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
 
   useEffect(() => {
     setPage(1);
-  }, [query, pageSize]);
+  }, [query, pageSize, filterCode]);
 
   return (
     <section className="products-page">
@@ -248,8 +298,9 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
                 วันหมดอายุ
               </th>
               <th style={{ padding: 6, width: 90, textAlign: 'right' }}>
-                ต้นทุน
+                ต้นทุนต่อหน่วย
               </th>
+              <th style={{ padding: 6, width: 90, textAlign: 'right' }}>รวม</th>
               <th style={{ padding: 6, width: 60, whiteSpace: 'nowrap' }}>
                 บันทึก
               </th>
@@ -317,14 +368,14 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
                       className="input"
                       type="number"
                       min={0}
-                      step={1}
+                      step={0.01}
                       value={
-                        getRowCostDraft(r) === 0 || getRowCostDraft(r)
-                          ? String(getRowCostDraft(r))
+                        getRowUnitCostDraft(r) === 0 || getRowUnitCostDraft(r)
+                          ? String(getRowUnitCostDraft(r))
                           : ''
                       }
                       onChange={(e) =>
-                        setCostByRowId((prev) => ({
+                        setUnitCostByRowId((prev) => ({
                           ...prev,
                           [r.id]: e.target.value,
                         }))
@@ -336,8 +387,21 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
                         padding: '4px 6px',
                         textAlign: 'right',
                       }}
-                      inputMode="numeric"
+                      inputMode="decimal"
                     />
+                  </td>
+                  <td
+                    style={{
+                      padding: 6,
+                      textAlign: 'right',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {(
+                      toNumber(getRowUnitCostDraft(r)) * toNumber(r.qty)
+                    ).toLocaleString('th-TH', {
+                      maximumFractionDigits: 2,
+                    })}
                   </td>
                   <td style={{ padding: 6, overflow: 'hidden' }}>
                     <button
@@ -348,8 +412,8 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
                         !String(r.code || '').trim() ||
                         String(r.code || '').trim() === '-' ||
                         !(
-                          Number.isFinite(Number(getRowCostDraft(r))) &&
-                          Number(getRowCostDraft(r)) > 0
+                          Number.isFinite(Number(getRowUnitCostDraft(r))) &&
+                          Number(getRowUnitCostDraft(r)) > 0
                         )
                       }
                       style={{
@@ -369,7 +433,7 @@ export default function ProductMovements({ products, onBack, onSaveCosts }) {
               ))
             ) : (
               <tr>
-                <td style={{ padding: 12, color: '#6b7280' }} colSpan={11}>
+                <td style={{ padding: 12, color: '#6b7280' }} colSpan={12}>
                   ยังไม่มีรายการเคลื่อนไหวสินค้า
                 </td>
               </tr>

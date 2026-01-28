@@ -10,7 +10,7 @@ const toCurrency = (n) => {
   });
 };
 
-function ProductModal({ product, onClose }) {
+function ProductModal({ product, onClose, onViewMovements }) {
   if (!product) return null;
 
   const displayName = product.nameTh || product.nameEn || '-';
@@ -76,7 +76,20 @@ function ProductModal({ product, onClose }) {
             </div>
           </div>
         </div>
-        <div className="modal-actions">
+        <div
+          className="modal-actions"
+          style={{ justifyContent: 'space-between' }}
+        >
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              onViewMovements?.(product);
+              onClose?.();
+            }}
+          >
+            รายการเคลื่อนไหวสินค้า
+          </button>
           <button type="button" className="button" onClick={onClose}>
             ปิด
           </button>
@@ -113,6 +126,7 @@ export default function Products({
   onEdit,
   onCreateNew,
   onPurchase,
+  onViewIngredients,
   onReceiveStock,
   onViewMovements,
   onViewConsumables,
@@ -224,6 +238,13 @@ export default function Products({
         >
           <h1 className="page-title">รายการสินค้า</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="button button--blue"
+              onClick={() => onViewIngredients?.()}
+            >
+              Ingredient
+            </button>
             <button
               type="button"
               className="button"
@@ -442,7 +463,11 @@ export default function Products({
       </div>
 
       {selected && (
-        <ProductModal product={selected} onClose={() => setSelected(null)} />
+        <ProductModal
+          product={selected}
+          onClose={() => setSelected(null)}
+          onViewMovements={(product) => onViewMovements?.(product)}
+        />
       )}
     </section>
   );
