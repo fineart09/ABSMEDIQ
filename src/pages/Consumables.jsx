@@ -26,8 +26,8 @@ const toCurrency = (n) => {
   const value = Number(n);
   if (!Number.isFinite(value)) return '-';
   return value.toLocaleString('th-TH', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 };
 
@@ -84,7 +84,87 @@ const generateConsumableCode = ({ existingCodes, items }) => {
   return candidate;
 };
 
-function ConsumableModal({ item, onClose }) {
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+const getAvailableStock = (item) => {
+  const lots = Array.isArray(item?.stockLots) ? item.stockLots : [];
+  const lotSum = lots.reduce((acc, lot) => {
+    const q = Number(lot?.qty);
+    return acc + (Number.isFinite(q) ? q : 0);
+  }, 0);
+  if (lots.length) return lotSum;
+  const stock = Number(item?.stock);
+  return Number.isFinite(stock) ? stock : 0;
+};
+
+const consumeFromLots = ({ lots, qty }) => {
+  const src = Array.isArray(lots) ? lots : [];
+  const desired = Number(qty);
+  if (!Number.isFinite(desired) || desired <= 0) {
+    return { ok: false, error: 'กรุณาระบุจำนวนตัดใช้ให้ถูกต้อง' };
+  }
+
+  const indexed = src.map((lot, idx) => ({ lot, idx }));
+  indexed.sort((a, b) => {
+    const aExp = String(a.lot?.expiryDate || '').trim();
+    const bExp = String(b.lot?.expiryDate || '').trim();
+    const expCmp = aExp.localeCompare(bExp);
+    if (aExp && bExp && expCmp !== 0) return expCmp;
+    if (aExp && !bExp) return -1;
+    if (!aExp && bExp) return 1;
+
+    const aRecv = String(a.lot?.receivedAt || '').trim();
+    const bRecv = String(b.lot?.receivedAt || '').trim();
+    const recvCmp = aRecv.localeCompare(bRecv);
+    if (aRecv && bRecv && recvCmp !== 0) return recvCmp;
+    if (aRecv && !bRecv) return -1;
+    if (!aRecv && bRecv) return 1;
+
+    const aNo = String(a.lot?.lotNo || '').trim();
+    const bNo = String(b.lot?.lotNo || '').trim();
+    const noCmp = aNo.localeCompare(bNo);
+    if (noCmp !== 0) return noCmp;
+
+    return a.idx - b.idx;
+  });
+
+  const nextLots = src.map((l) => ({ ...l }));
+  const consumed = [];
+
+  let remaining = desired;
+  for (const { idx } of indexed) {
+    if (remaining <= 0) break;
+    const lot = nextLots[idx];
+    const available = Number(lot?.qty);
+    const avail = Number.isFinite(available) ? available : 0;
+    if (avail <= 0) continue;
+
+    const take = Math.min(avail, remaining);
+    if (take <= 0) continue;
+
+    lot.qty = avail - take;
+    remaining -= take;
+    consumed.push({
+      lotNo: String(lot?.lotNo || '').trim() || '-',
+      expiryDate: String(lot?.expiryDate || '').trim() || '-',
+      receivedAt: String(lot?.receivedAt || '').trim() || '-',
+      qty: take,
+    });
+  }
+
+  if (remaining > 0) {
+    return { ok: false, error: 'จำนวนตัดใช้มากกว่าคงเหลือ' };
+  }
+
+  const newStock = nextLots.reduce((acc, lot) => {
+    const q = Number(lot?.qty);
+    return acc + (Number.isFinite(q) ? q : 0);
+  }, 0);
+
+  return { ok: true, nextLots, consumed, newStock };
+};
+
+function ConsumableModal({ item, onClose, onViewMovements }) {
   if (!item) return null;
 
   const displayName = item.nameTh || item.nameEn || '-';
@@ -144,7 +224,20 @@ function ConsumableModal({ item, onClose }) {
             </div>
           </div>
         </div>
-        <div className="modal-actions">
+        <div
+          className="modal-actions"
+          style={{ justifyContent: 'space-between' }}
+        >
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              onViewMovements?.(item);
+              onClose?.();
+            }}
+          >
+            รายการเคลื่อนไหววัสดุสิ้นเปลืองและอื่นๆ
+          </button>
           <button type="button" className="button" onClick={onClose}>
             ปิด
           </button>
@@ -330,16 +423,140 @@ function CreateConsumableModal({ open, onClose, onSave }) {
   );
 }
 
+function ConsumeConsumableModal({ open, item, onClose, onConfirm }) {
+  const [qty, setQty] = useState('1');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setQty('1');
+    setNote('');
+    setError('');
+  }, [open, item?.code]);
+
+  if (!open || !item) return null;
+
+  const displayName = item?.nameTh || item?.nameEn || '-';
+  const available = getAvailableStock(item);
+
+  const onSubmit = () => {
+    const qtyNum = Number(qty);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      setError('กรุณาระบุจำนวนตัดใช้ให้ถูกต้อง');
+      return;
+    }
+    if (qtyNum > available) {
+      setError(`จำนวนตัดใช้มากกว่าคงเหลือ (คงเหลือ ${available})`);
+      return;
+    }
+    setError('');
+    onConfirm?.({ qty: qtyNum, note: String(note || '').trim() });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal--customer-details"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`ตัดใช้วัสดุสิ้นเปลือง ${displayName} (${item.code})`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>ตัดใช้วัสดุสิ้นเปลือง</h3>
+        </div>
+        <div className="modal-body">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '160px 1fr',
+              gap: '8px 12px',
+              marginBottom: 12,
+            }}
+          >
+            <div>รหัส</div>
+            <div>
+              <span className="badge badge--hn">{item.code}</span>
+            </div>
+            <div>ชื่อ</div>
+            <div>{displayName}</div>
+            <div>หน่วย</div>
+            <div>{item.unit || '-'}</div>
+            <div>คงเหลือ</div>
+            <div>{available}</div>
+          </div>
+
+          <div className="form-card" style={{ padding: 12, width: '100%' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '160px 1fr',
+                gap: '8px 12px',
+                alignItems: 'center',
+              }}
+            >
+              <div>จำนวนตัดใช้</div>
+              <div>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  inputMode="decimal"
+                  style={{ width: 'min(260px, 100%)' }}
+                />
+              </div>
+
+              <div>หมายเหตุ</div>
+              <div>
+                <input
+                  className="input"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="เช่น ใช้ทำหัตถการ"
+                  style={{ width: 'min(520px, 100%)' }}
+                />
+              </div>
+            </div>
+
+            {error ? (
+              <div style={{ color: '#b91c1c', marginTop: 10 }}>{error}</div>
+            ) : null}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            className="button button--solid"
+            onClick={onSubmit}
+          >
+            ยืนยันตัดใช้
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Consumables({
   onBack,
   items,
   onItemsChange,
   onReceiveStock,
+  onViewMovements,
+  onEdit,
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('ทั้งหมด');
   const stickyRef = useRef(null);
   const [selected, setSelected] = useState(null);
+  const [consumeTarget, setConsumeTarget] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -467,6 +684,13 @@ export default function Consumables({
             </button>
             <button
               type="button"
+              className="button"
+              onClick={() => onViewMovements?.()}
+            >
+              รายการเคลื่อนไหววัสดุสิ้นเปลือง
+            </button>
+            <button
+              type="button"
               className="button button--solid"
               onClick={() => onBack?.()}
             >
@@ -527,10 +751,11 @@ export default function Consumables({
               <th style={{ padding: 8 }}>รหัส</th>
               <th style={{ padding: 8 }}>ชื่อ</th>
               <th style={{ padding: 8 }}>หมวดหมู่</th>
-              <th style={{ padding: 8 }}>ราคา</th>
               <th style={{ padding: 8 }}>คงเหลือ</th>
               <th style={{ padding: 8 }}>สถานะ</th>
               <th style={{ padding: 8 }}>ดูข้อมูล</th>
+              <th style={{ padding: 8 }}>แก้ไข</th>
+              <th style={{ padding: 8 }}>ตัดใช้</th>
             </tr>
           </thead>
           <tbody>
@@ -548,7 +773,6 @@ export default function Consumables({
                   ) : null}
                 </td>
                 <td style={{ padding: 8 }}>{i.category || '-'}</td>
-                <td style={{ padding: 8 }}>{toCurrency(i.price)}</td>
                 <td style={{ padding: 8 }}>
                   {Number.isFinite(Number(i.stock)) ? i.stock : '-'}
                 </td>
@@ -575,13 +799,37 @@ export default function Consumables({
                     รายละเอียด
                   </button>
                 </td>
+                <td style={{ padding: 8 }}>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => onEdit?.(i)}
+                  >
+                    แก้ไข
+                  </button>
+                </td>
+                <td style={{ padding: 8 }}>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setConsumeTarget(i)}
+                    disabled={getAvailableStock(i) <= 0}
+                    title={
+                      getAvailableStock(i) <= 0
+                        ? 'ไม่สามารถตัดใช้ได้: คงเหลือ 0'
+                        : 'ตัดใช้วัสดุสิ้นเปลือง'
+                    }
+                  >
+                    ตัดใช้
+                  </button>
+                </td>
               </tr>
             ))}
 
             {paged.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ padding: 16, textAlign: 'center', color: '#6b7280' }}
                 >
                   ไม่พบข้อมูล
@@ -656,7 +904,11 @@ export default function Consumables({
         </div>
       </div>
 
-      <ConsumableModal item={selected} onClose={() => setSelected(null)} />
+      <ConsumableModal
+        item={selected}
+        onClose={() => setSelected(null)}
+        onViewMovements={onViewMovements}
+      />
       <CreateConsumableModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -680,6 +932,82 @@ export default function Consumables({
           });
 
           setCreateOpen(false);
+        }}
+      />
+
+      <ConsumeConsumableModal
+        open={Boolean(consumeTarget)}
+        item={consumeTarget}
+        onClose={() => setConsumeTarget(null)}
+        onConfirm={({ qty, note }) => {
+          const codeKey = String(consumeTarget?.code || '').trim();
+          if (!codeKey) return;
+
+          setRawItems((prev) => {
+            const src = Array.isArray(prev) ? prev : [];
+            return src.map((it) => {
+              if (String(it?.code || '').trim() !== codeKey) return it;
+
+              const available = getAvailableStock(it);
+              const desired = Number(qty);
+              if (!Number.isFinite(desired) || desired <= 0) return it;
+              if (desired > available) return it;
+
+              const lots = Array.isArray(it?.stockLots) ? it.stockLots : [];
+
+              if (lots.length) {
+                const res = consumeFromLots({ lots, qty: desired });
+                if (!res.ok) return it;
+
+                const issues = Array.isArray(it?.stockIssues)
+                  ? it.stockIssues
+                  : [];
+
+                const issuedAt = todayISO();
+                const newIssues = res.consumed.map((c, idx) => ({
+                  id: `${codeKey}__ISSUE__${issuedAt}__${c.lotNo}__${idx}`,
+                  issuedAt,
+                  qty: c.qty,
+                  lotNo: c.lotNo,
+                  expiryDate: c.expiryDate,
+                  note: String(note || '').trim(),
+                }));
+
+                return {
+                  ...it,
+                  stockLots: res.nextLots,
+                  stock: res.newStock,
+                  status: res.newStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                  stockIssues: [...newIssues, ...issues],
+                };
+              }
+
+              const currentStock = Number(it?.stock);
+              const stockNum = Number.isFinite(currentStock) ? currentStock : 0;
+              const nextStock = Math.max(0, stockNum - desired);
+              const issues = Array.isArray(it?.stockIssues)
+                ? it.stockIssues
+                : [];
+              return {
+                ...it,
+                stock: nextStock,
+                status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                stockIssues: [
+                  {
+                    id: `${codeKey}__ISSUE__${todayISO()}__${issues.length}`,
+                    issuedAt: todayISO(),
+                    qty: desired,
+                    lotNo: '-',
+                    expiryDate: '-',
+                    note: String(note || '').trim(),
+                  },
+                  ...issues,
+                ],
+              };
+            });
+          });
+
+          setConsumeTarget(null);
         }}
       />
     </section>

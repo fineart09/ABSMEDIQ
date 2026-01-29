@@ -372,10 +372,12 @@ export default function CreatePurchaseOrder({
                           className="input"
                           type="number"
                           min={0}
+                          step="any"
                           value={it.qty}
                           onChange={(e) =>
                             updateItem(idx, { qty: toNumber(e.target.value) })
                           }
+                          inputMode="decimal"
                           style={{ width: 120 }}
                         />
                       </td>
@@ -384,15 +386,20 @@ export default function CreatePurchaseOrder({
                           className="input"
                           type="number"
                           min={0}
+                          step={0.01}
                           value={it.price}
                           onChange={(e) =>
                             updateItem(idx, { price: toNumber(e.target.value) })
                           }
+                          inputMode="decimal"
                           style={{ width: 140 }}
                         />
                       </td>
                       <td style={{ padding: 8 }}>
-                        {lineTotal.toLocaleString('th-TH')}
+                        {lineTotal.toLocaleString('th-TH', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </td>
                       <td style={{ padding: 8 }}>
                         <button
@@ -427,7 +434,11 @@ export default function CreatePurchaseOrder({
             }}
           >
             <div>
-              <strong>ยอดรวม:</strong> {total.toLocaleString('th-TH')}
+              <strong>ยอดรวม:</strong>{' '}
+              {total.toLocaleString('th-TH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </div>
           </div>
         </div>

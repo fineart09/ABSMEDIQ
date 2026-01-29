@@ -5,8 +5,8 @@ const toCurrency = (n) => {
   const value = Number(n);
   if (!Number.isFinite(value)) return '-';
   return value.toLocaleString('th-TH', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 };
 

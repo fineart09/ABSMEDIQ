@@ -10,8 +10,8 @@ const toCurrency = (n) => {
   const value = Number(n);
   if (!Number.isFinite(value)) return '-';
   return value.toLocaleString('th-TH', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 };
 
@@ -284,7 +284,7 @@ function ReceivePurchaseOrderModal({ order, onClose, onConfirm }) {
                           className="input"
                           type="number"
                           min={0}
-                          step={1}
+                          step="any"
                           value={
                             Number.isFinite(Number(receivingByCode[r.code]))
                               ? receivingByCode[r.code]
@@ -298,6 +298,7 @@ function ReceivePurchaseOrderModal({ order, onClose, onConfirm }) {
                               [r.code]: nextValue,
                             }));
                           }}
+                          inputMode="decimal"
                           style={{ width: '140px' }}
                         />
                       </td>

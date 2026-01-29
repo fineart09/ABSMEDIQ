@@ -778,13 +778,14 @@ export default function CreateCustomer({
                         type="number"
                         min="0"
                         max="100"
-                        step="1"
+                        step="any"
                         value={cond.discount}
                         onChange={(e) =>
                           setCond((c) => ({ ...c, discount: e.target.value }))
                         }
                         className="input"
                         placeholder="เช่น 10"
+                        inputMode="decimal"
                       />
                     </label>
                   </div>

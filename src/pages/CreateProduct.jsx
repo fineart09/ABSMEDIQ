@@ -6,6 +6,15 @@ const toNumber = (v) => {
   return Number.isFinite(n) ? n : '';
 };
 
+const cleanDecimalInput = (raw) => {
+  const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
+  const dotIndex = cleaned.indexOf('.');
+  if (dotIndex === -1) return cleaned;
+  const head = cleaned.slice(0, dotIndex + 1);
+  const tail = cleaned.slice(dotIndex + 1).replace(/\./g, '');
+  return head + tail;
+};
+
 const generateProductCode = () => {
   const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -27,10 +36,16 @@ const UNIT_OPTIONS = [
   'ชิ้น',
 ];
 
-export default function CreateProduct({ onCancel, onSave, initial, title }) {
+export default function CreateProduct({
+  onCancel,
+  onSave,
+  initial,
+  title,
+  prefill,
+}) {
   const initialForm = useMemo(() => {
     if (!initial) {
-      return {
+      const base = {
         code: '',
         nameTh: '',
         nameEn: '',
@@ -45,6 +60,36 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
         status: 'ใช้งาน',
         description: '',
       };
+
+      const src = prefill && typeof prefill === 'object' ? prefill : null;
+      if (!src) return base;
+
+      const merged = { ...base };
+      const assignIfProvided = (key) => {
+        if (!(key in base)) return;
+        const v = src[key];
+        if (v === undefined || v === null) return;
+        if (typeof base[key] === 'string') {
+          merged[key] = String(v);
+          return;
+        }
+        merged[key] = v;
+      };
+
+      assignIfProvided('nameTh');
+      assignIfProvided('category');
+      assignIfProvided('unit');
+      assignIfProvided('warehouse');
+      assignIfProvided('description');
+
+      if (src.price !== undefined && src.price !== null && src.price !== '') {
+        merged.price = toNumber(src.price);
+      }
+      if (src.stock !== undefined && src.stock !== null && src.stock !== '') {
+        merged.stock = toNumber(src.stock);
+      }
+
+      return merged;
     }
     return {
       code: initial.code || '',
@@ -61,7 +106,7 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
       status: initial.status || 'ใช้งาน',
       description: initial.description || '',
     };
-  }, [initial]);
+  }, [initial, prefill]);
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -80,7 +125,7 @@ export default function CreateProduct({ onCancel, onSave, initial, title }) {
 
   const updateNumber = (field) => (e) => {
     const raw = e.target.value;
-    const cleaned = raw.replace(/[^0-9.]/g, '');
+    const cleaned = cleanDecimalInput(raw);
     setForm((prev) => ({ ...prev, [field]: cleaned }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   };

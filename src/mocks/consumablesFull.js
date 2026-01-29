@@ -8,6 +8,29 @@ const CONSUMABLES_FULL = [
     stock: 18,
     status: 'ใช้งาน',
     warehouse: '1',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0001-2511-A',
+        expiryDate: '2026-06-30',
+        unitPrice: 118,
+        qty: 6,
+        receivedAt: '2025-11-05',
+      },
+      {
+        lotNo: 'LOT-C0001-2512-B',
+        expiryDate: '2026-07-31',
+        unitPrice: 120,
+        qty: 5,
+        receivedAt: '2025-12-12',
+      },
+      {
+        lotNo: 'LOT-C0001-2601-C',
+        expiryDate: '2026-09-30',
+        unitPrice: 122,
+        qty: 7,
+        receivedAt: '2026-01-10',
+      },
+    ],
   },
   {
     code: 'C-0002',
@@ -18,6 +41,29 @@ const CONSUMABLES_FULL = [
     stock: 12,
     status: 'ใช้งาน',
     warehouse: '2',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0002-2510-A',
+        expiryDate: '2026-05-31',
+        unitPrice: 119,
+        qty: 4,
+        receivedAt: '2025-10-18',
+      },
+      {
+        lotNo: 'LOT-C0002-2512-B',
+        expiryDate: '2026-08-31',
+        unitPrice: 121,
+        qty: 3,
+        receivedAt: '2025-12-08',
+      },
+      {
+        lotNo: 'LOT-C0002-2601-C',
+        expiryDate: '2026-10-31',
+        unitPrice: 120,
+        qty: 5,
+        receivedAt: '2026-01-22',
+      },
+    ],
   },
   {
     code: 'C-0003',
@@ -28,6 +74,36 @@ const CONSUMABLES_FULL = [
     stock: 0,
     status: 'ไม่ใช้งาน',
     warehouse: '3',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0003-2509-A',
+        expiryDate: '2026-04-30',
+        unitPrice: 117,
+        qty: 2,
+        receivedAt: '2025-09-02',
+      },
+      {
+        lotNo: 'LOT-C0003-2511-B',
+        expiryDate: '2026-06-30',
+        unitPrice: 119,
+        qty: 3,
+        receivedAt: '2025-11-21',
+      },
+      {
+        lotNo: 'LOT-C0003-2512-C',
+        expiryDate: '2026-07-31',
+        unitPrice: 120,
+        qty: 1,
+        receivedAt: '2025-12-20',
+      },
+      {
+        lotNo: 'LOT-C0003-2601-D',
+        expiryDate: '2026-09-30',
+        unitPrice: 121,
+        qty: 2,
+        receivedAt: '2026-01-14',
+      },
+    ],
   },
   {
     code: 'C-0004',
@@ -38,6 +114,29 @@ const CONSUMABLES_FULL = [
     stock: 34,
     status: 'ใช้งาน',
     warehouse: '4',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0004-2510-A',
+        expiryDate: '2027-01-31',
+        unitPrice: 92,
+        qty: 10,
+        receivedAt: '2025-10-05',
+      },
+      {
+        lotNo: 'LOT-C0004-2511-B',
+        expiryDate: '2027-02-28',
+        unitPrice: 95,
+        qty: 12,
+        receivedAt: '2025-11-15',
+      },
+      {
+        lotNo: 'LOT-C0004-2512-C',
+        expiryDate: '2027-03-31',
+        unitPrice: 96,
+        qty: 12,
+        receivedAt: '2025-12-27',
+      },
+    ],
   },
   {
     code: 'C-0005',
@@ -48,6 +147,29 @@ const CONSUMABLES_FULL = [
     stock: 40,
     status: 'ใช้งาน',
     warehouse: '5',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0005-2508-A',
+        expiryDate: '2027-08-31',
+        unitPrice: 33,
+        qty: 15,
+        receivedAt: '2025-08-19',
+      },
+      {
+        lotNo: 'LOT-C0005-2510-B',
+        expiryDate: '2027-10-31',
+        unitPrice: 35,
+        qty: 12,
+        receivedAt: '2025-10-22',
+      },
+      {
+        lotNo: 'LOT-C0005-2601-C',
+        expiryDate: '2027-12-31',
+        unitPrice: 36,
+        qty: 13,
+        receivedAt: '2026-01-09',
+      },
+    ],
   },
   {
     code: 'C-0006',
@@ -58,6 +180,15 @@ const CONSUMABLES_FULL = [
     stock: 22,
     status: 'ใช้งาน',
     warehouse: '6',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0006-2512-A',
+        expiryDate: '2027-12-31',
+        unitPrice: 44,
+        qty: 8,
+        receivedAt: '2025-12-02',
+      },
+    ],
   },
   {
     code: 'C-0007',
@@ -68,6 +199,15 @@ const CONSUMABLES_FULL = [
     stock: 9,
     status: 'ใช้งาน',
     warehouse: '7',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0007-2511-A',
+        expiryDate: '2027-09-30',
+        unitPrice: 54,
+        qty: 4,
+        receivedAt: '2025-11-09',
+      },
+    ],
   },
   {
     code: 'C-0008',
@@ -78,6 +218,15 @@ const CONSUMABLES_FULL = [
     stock: 7,
     status: 'ใช้งาน',
     warehouse: '8',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0008-2601-A',
+        expiryDate: '2028-01-31',
+        unitPrice: 158,
+        qty: 3,
+        receivedAt: '2026-01-06',
+      },
+    ],
   },
   {
     code: 'C-0009',
@@ -88,6 +237,15 @@ const CONSUMABLES_FULL = [
     stock: 6,
     status: 'ใช้งาน',
     warehouse: '9',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0009-2510-A',
+        expiryDate: '2028-03-31',
+        unitPrice: 172,
+        qty: 2,
+        receivedAt: '2025-10-28',
+      },
+    ],
   },
   {
     code: 'C-0010',
@@ -98,6 +256,36 @@ const CONSUMABLES_FULL = [
     stock: 15,
     status: 'ใช้งาน',
     warehouse: '10',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0010-2511-A',
+        expiryDate: '2028-11-30',
+        unitPrice: 68,
+        qty: 6,
+        receivedAt: '2025-11-03',
+      },
+      {
+        lotNo: 'LOT-C0010-2512-B',
+        expiryDate: '2028-12-31',
+        unitPrice: 70,
+        qty: 4,
+        receivedAt: '2025-12-16',
+      },
+      {
+        lotNo: 'LOT-C0010-2601-C',
+        expiryDate: '2029-01-31',
+        unitPrice: 72,
+        qty: 5,
+        receivedAt: '2026-01-25',
+      },
+      {
+        lotNo: 'LOT-C0010-2601-D',
+        expiryDate: '2029-03-31',
+        unitPrice: 69,
+        qty: 3,
+        receivedAt: '2026-01-28',
+      },
+    ],
   },
   {
     code: 'C-0011',
@@ -108,6 +296,15 @@ const CONSUMABLES_FULL = [
     stock: 4,
     status: 'ใช้งาน',
     warehouse: '11',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0011-2512-A',
+        expiryDate: '2027-06-30',
+        unitPrice: 215,
+        qty: 2,
+        receivedAt: '2025-12-05',
+      },
+    ],
   },
   {
     code: 'C-0012',
@@ -118,6 +315,15 @@ const CONSUMABLES_FULL = [
     stock: 20,
     status: 'ใช้งาน',
     warehouse: '12',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0012-2511-A',
+        expiryDate: '2029-11-30',
+        unitPrice: 34,
+        qty: 10,
+        receivedAt: '2025-11-18',
+      },
+    ],
   },
   {
     code: 'C-0013',
@@ -128,6 +334,15 @@ const CONSUMABLES_FULL = [
     stock: 11,
     status: 'ใช้งาน',
     warehouse: '13',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0013-2601-A',
+        expiryDate: '2029-12-31',
+        unitPrice: 58,
+        qty: 5,
+        receivedAt: '2026-01-12',
+      },
+    ],
   },
   {
     code: 'C-0014',
@@ -138,6 +353,15 @@ const CONSUMABLES_FULL = [
     stock: 25,
     status: 'ใช้งาน',
     warehouse: '14',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0014-2510-A',
+        expiryDate: '2028-10-31',
+        unitPrice: 27,
+        qty: 12,
+        receivedAt: '2025-10-08',
+      },
+    ],
   },
   {
     code: 'C-0015',
@@ -148,6 +372,15 @@ const CONSUMABLES_FULL = [
     stock: 13,
     status: 'ใช้งาน',
     warehouse: '15',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0015-2512-A',
+        expiryDate: '2028-12-31',
+        unitPrice: 39,
+        qty: 6,
+        receivedAt: '2025-12-11',
+      },
+    ],
   },
   {
     code: 'C-0016',
@@ -158,6 +391,15 @@ const CONSUMABLES_FULL = [
     stock: 2,
     status: 'ใช้งาน',
     warehouse: '16',
+    stockLots: [
+      {
+        lotNo: 'LOT-C0016-2511-A',
+        expiryDate: '2030-11-30',
+        unitPrice: 175,
+        qty: 1,
+        receivedAt: '2025-11-26',
+      },
+    ],
   },
   {
     code: 'C-0017',

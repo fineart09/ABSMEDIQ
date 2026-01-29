@@ -10,7 +10,10 @@ export default function ReceiveConsumablesStock({
       title="รับวัสดุสิ้นเปลืองเข้า stock"
       items={existingConsumables}
       codePrefix="C-"
-      withLotExpiry={false}
+      withLotExpiry={true}
+      withReceivePrice={false}
+      lotExpiryRequired={false}
+      showItemPrice={false}
       labels={{
         back: 'กลับไปหน้าวัสดุสิ้นเปลืองและอื่นๆ',
         searchTitle: 'ค้นหาวัสดุสิ้นเปลืองเพื่อรับเข้า stock',
@@ -22,6 +25,9 @@ export default function ReceiveConsumablesStock({
         unit: 'หน่วย',
         stock: 'คงเหลือปัจจุบัน',
         qty: 'จำนวนรับเข้า',
+        lotNo: 'เลข lot',
+        lotNoPlaceholder: 'เช่น LOT-2026-001',
+        expiryDate: 'วันหมดอายุ',
         confirm: 'ยืนยันรับเข้า stock',
         cancel: 'ยกเลิก',
       }}

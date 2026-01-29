@@ -5,6 +5,7 @@ import CreateProduct from './pages/CreateProduct.jsx';
 import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
 import EditProduct from './pages/EditProduct.jsx';
+import EditConsumable from './pages/EditConsumable.jsx';
 import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
 import Products from './pages/Products.jsx';
 // import PurchaseHome from './pages/PurchaseHome.jsx';
@@ -16,6 +17,7 @@ import ProductMovements from './pages/ProductMovements.jsx';
 import Consumables from './pages/Consumables.jsx';
 import ReceiveConsumablesStock from './pages/ReceiveConsumablesStock.jsx';
 import Ingredients from './pages/Ingredients.jsx';
+import ConsumableMovements from './pages/ConsumableMovements.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
@@ -59,10 +61,16 @@ export default function App() {
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
+  const [consumableMovementFilterCode, setConsumableMovementFilterCode] =
+    useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [editingConsumable, setEditingConsumable] = useState(null);
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
   const [editingSupplier, setEditingSupplier] = useState(null);
+  const [ingredientDraft, setIngredientDraft] = useState([]);
+  const [createProductFromIngredients, setCreateProductFromIngredients] =
+    useState(null);
   const [products, setProducts] = useState(() => {
     const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
     return src.map(stripProductPhotoUrl);
@@ -145,6 +153,7 @@ export default function App() {
       'Ingredient',
       'วัสดุสิ้นเปลืองและอื่นๆ',
       'รับวัสดุสิ้นเปลืองเข้า stock',
+      'แก้ไขรายละเอียดวัสดุสิ้นเปลือง',
     ]);
 
     if (customersPages.has(active)) document.body.dataset.pageKey = 'customers';
@@ -885,14 +894,154 @@ export default function App() {
           />
         );
       case 'Ingredient':
-        return <Ingredients onBack={() => setActive('รายการสินค้า')} />;
+        return (
+          <Ingredients
+            products={products}
+            draft={ingredientDraft}
+            onDraftChange={setIngredientDraft}
+            onBack={() => setActive('รายการสินค้า')}
+            onProceed={(items) => {
+              const list = Array.isArray(items) ? items : [];
+              const lines = list
+                .filter((x) => x && typeof x === 'object')
+                .map((x) => {
+                  const code = String(x.code || '').trim();
+                  const name = String(x.nameTh || x.nameEn || '').trim();
+                  const qty =
+                    x.qty === '' || x.qty === null || x.qty === undefined
+                      ? ''
+                      : x.qty;
+                  const unit = String(x.unit || '').trim();
+                  const note = String(x.note || '').trim();
+                  const head = [code, name].filter(Boolean).join(' ');
+                  const amount = [qty, unit]
+                    .filter((v) => String(v).trim())
+                    .join(' ');
+                  return `- ${head}${amount ? `: ${amount}` : ''}${note ? ` (${note})` : ''}`;
+                })
+                .join('\n');
+
+              setCreateProductFromIngredients({
+                description: lines ? `Ingredients\n${lines}` : '',
+              });
+              setEditingProduct(null);
+              setActive('สร้างรายการสินค้าใหม่');
+            }}
+          />
+        );
       case 'วัสดุสิ้นเปลืองและอื่นๆ':
         return (
           <Consumables
             items={consumables}
             onItemsChange={setConsumables}
             onReceiveStock={() => setActive('รับวัสดุสิ้นเปลืองเข้า stock')}
+            onViewMovements={(consumable) => {
+              const code = String(consumable?.code || '').trim();
+              setConsumableMovementFilterCode(code || null);
+              setActive('รายการเคลื่อนไหววัสดุสิ้นเปลือง');
+            }}
+            onEdit={(consumable) => {
+              setEditingConsumable(consumable);
+              setActive('แก้ไขรายละเอียดวัสดุสิ้นเปลือง');
+            }}
             onBack={() => setActive('รายการสินค้า')}
+          />
+        );
+      case 'รายการเคลื่อนไหววัสดุสิ้นเปลือง':
+        return (
+          <ConsumableMovements
+            consumables={consumables}
+            filterCode={consumableMovementFilterCode}
+            onBackToConsumables={() => setActive('วัสดุสิ้นเปลืองและอื่นๆ')}
+            onBackToProducts={() => setActive('รายการสินค้า')}
+            onSaveCosts={({ code, cost }) => {
+              const codeKey = String(code || '').trim();
+              const costNum = Number(cost);
+              if (!codeKey) {
+                openModal('บันทึกต้นทุนไม่สำเร็จ: ไม่พบรหัสวัสดุ');
+                return;
+              }
+              if (!codeKey.startsWith('C-')) {
+                openModal(
+                  `บันทึกต้นทุนไม่สำเร็จ: รหัสวัสดุไม่ถูกต้อง (${codeKey})`
+                );
+                return;
+              }
+              if (!Number.isFinite(costNum) || costNum <= 0) {
+                openModal(
+                  `บันทึกต้นทุนไม่สำเร็จ: ต้นทุนไม่ถูกต้อง (${codeKey})`
+                );
+                return;
+              }
+
+              setConsumables((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                const exists = src.some(
+                  (c) => String(c?.code || '').trim() === codeKey
+                );
+                if (!exists) {
+                  openModal(`บันทึกต้นทุนไม่สำเร็จ: ไม่พบวัสดุ ${codeKey}`);
+                  return src;
+                }
+
+                return src.map((c) => {
+                  const cCode = String(c?.code || '').trim();
+                  if (cCode !== codeKey) return c;
+                  return {
+                    ...c,
+                    price: costNum,
+                  };
+                });
+              });
+
+              openModal(
+                `บันทึกต้นทุนสำเร็จ: ${codeKey} = ${costNum.toLocaleString('th-TH')}`
+              );
+            }}
+          />
+        );
+      case 'แก้ไขรายละเอียดวัสดุสิ้นเปลือง':
+        return (
+          <EditConsumable
+            title="แก้ไขรายละเอียดวัสดุสิ้นเปลือง"
+            initial={editingConsumable}
+            onCancel={() => {
+              setEditingConsumable(null);
+              setActive('วัสดุสิ้นเปลืองและอื่นๆ');
+            }}
+            onSave={(data) => {
+              const codeKey = String(data?.code || '').trim();
+              if (!codeKey) {
+                openModal('บันทึกข้อมูลวัสดุไม่สำเร็จ: ไม่พบรหัสวัสดุ');
+                return;
+              }
+
+              setConsumables((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                const exists = src.some(
+                  (it) => String(it?.code || '').trim() === codeKey
+                );
+                if (!exists) {
+                  openModal(
+                    `บันทึกข้อมูลวัสดุไม่สำเร็จ: ไม่พบวัสดุ ${codeKey}`
+                  );
+                  return src;
+                }
+
+                return src.map((it) => {
+                  if (String(it?.code || '').trim() !== codeKey) return it;
+                  return {
+                    ...it,
+                    ...data,
+                    code: codeKey,
+                  };
+                });
+              });
+
+              setEditingConsumable(null);
+              setActive('วัสดุสิ้นเปลืองและอื่นๆ');
+              openModal('บันทึกข้อมูลวัสดุสำเร็จ');
+            }}
           />
         );
       case 'รายการเคลื่อนไหวสินค้า':
@@ -947,9 +1096,11 @@ export default function App() {
           <ReceiveConsumablesStock
             existingConsumables={consumables}
             onCancel={() => setActive('วัสดุสิ้นเปลืองและอื่นๆ')}
-            onReceive={({ code, qty }) => {
+            onReceive={({ code, qty, lotNo, expiryDate }) => {
               const codeKey = String(code || '').trim();
               const qtyNum = Number(qty);
+              const lotKey = String(lotNo || '').trim();
+              const expKey = String(expiryDate || '').trim();
               if (!codeKey) {
                 openModal('รับเข้า stock ไม่สำเร็จ: ไม่พบรหัสวัสดุ');
                 return;
@@ -995,6 +1146,8 @@ export default function App() {
                       {
                         qty: qtyNum,
                         receivedAt,
+                        ...(lotKey ? { lotNo: lotKey } : null),
+                        ...(expKey ? { expiryDate: expKey } : null),
                       },
                     ],
                   };
@@ -1070,7 +1223,19 @@ export default function App() {
       case 'สร้างรายการสินค้าใหม่':
         return (
           <CreateProduct
-            onCancel={() => setActive('รายการสินค้า')}
+            title={
+              createProductFromIngredients
+                ? 'ผลิตยาตัวใหม่ (สร้างสินค้าใหม่จาก Ingredient)'
+                : 'สร้างรายการสินค้าใหม่'
+            }
+            prefill={createProductFromIngredients || null}
+            onCancel={() => {
+              if (createProductFromIngredients) {
+                setActive('Ingredient');
+                return;
+              }
+              setActive('รายการสินค้า');
+            }}
             onSave={(data) => {
               console.log('สร้างสินค้าใหม่:', data);
               if (data?.code) {
@@ -1085,6 +1250,7 @@ export default function App() {
                   return Array.from(byCode.values());
                 });
               }
+              setCreateProductFromIngredients(null);
               setActive('รายการสินค้า');
               openModal('สร้างรายการสินค้าใหม่สำเร็จ');
             }}

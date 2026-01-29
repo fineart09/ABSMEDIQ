@@ -6,6 +6,15 @@ const toNumber = (v) => {
   return Number.isFinite(n) ? n : '';
 };
 
+const cleanDecimalInput = (raw) => {
+  const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
+  const dotIndex = cleaned.indexOf('.');
+  if (dotIndex === -1) return cleaned;
+  const head = cleaned.slice(0, dotIndex + 1);
+  const tail = cleaned.slice(dotIndex + 1).replace(/\./g, '');
+  return head + tail;
+};
+
 const CATEGORY_OPTIONS = ['ยาเม็ด', 'ยาน้ำ', 'ยาผง', 'เวชภัณฑ์'];
 const UNIT_OPTIONS = [
   'เม็ด',
@@ -85,7 +94,7 @@ export default function EditProduct({
 
   const updateNumber = (field) => (e) => {
     const raw = e.target.value;
-    const cleaned = raw.replace(/[^0-9.]/g, '');
+    const cleaned = cleanDecimalInput(raw);
     setForm((prev) => ({ ...prev, [field]: cleaned }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   };

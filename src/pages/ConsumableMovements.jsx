@@ -19,21 +19,22 @@ const getEffectiveReceivedQty = (poStatus, item) => {
   return toNumber(receivedQtyRaw);
 };
 
-const normalizeProducts = (src) => {
+const normalizeConsumables = (src) => {
   const list = Array.isArray(src) ? src : [];
   const usedCodes = new Set();
-  return list.map((p, i) => {
-    const rawCode = String(p?.code || '').trim();
-    let code = rawCode || `PRD${String(i + 1).padStart(3, '0')}`;
+  return list.map((c, i) => {
+    const rawCode = String(c?.code || '').trim();
+    let code = rawCode || `C-${String(i + 1).padStart(4, '0')}`;
     while (usedCodes.has(code)) {
-      code = `PRD${String(i + 1 + usedCodes.size).padStart(3, '0')}`;
+      code = `C-${String(i + 1 + usedCodes.size).padStart(4, '0')}`;
     }
     usedCodes.add(code);
 
-    const stock = Number.isFinite(Number(p?.stock)) ? Number(p.stock) : 0;
-    const status = p?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+    const stock = Number.isFinite(Number(c?.stock)) ? Number(c.stock) : 0;
+    const status = c?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+
     return {
-      ...p,
+      ...c,
       code,
       stock,
       status,
@@ -41,16 +42,17 @@ const normalizeProducts = (src) => {
   });
 };
 
-export default function ProductMovements({
-  products,
-  onBack,
-  onSaveCosts,
+export default function ConsumableMovements({
+  consumables,
   filterCode,
+  onBackToConsumables,
+  onBackToProducts,
+  onSaveCosts,
 }) {
   const [query, setQuery] = useState('');
   const [unitCostByRowId, setUnitCostByRowId] = useState({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(30);
 
   useEffect(() => {
     const code = String(filterCode || '').trim();
@@ -71,31 +73,33 @@ export default function ProductMovements({
   };
 
   const rows = useMemo(() => {
-    const base = normalizeProducts(products);
+    const base = normalizeConsumables(consumables);
     const codeFilter = String(filterCode || '').trim();
 
-    const stockLotMovements = base.flatMap((p) => {
-      const lots = Array.isArray(p?.stockLots) ? p.stockLots : [];
-      const name = p.nameTh || p.nameEn || '-';
-      const cost = toNumber(p?.cost);
+    const stockLotMovements = base.flatMap((c) => {
+      const lots = Array.isArray(c?.stockLots) ? c.stockLots : [];
+      const name = c.nameTh || c.nameEn || '-';
+      const cost = toNumber(c?.price);
 
       return lots.map((lot, idx) => {
         const receivedAt = String(lot?.receivedAt || '').trim();
         const expiryDate = String(lot?.expiryDate || '').trim();
         const lotNo = String(lot?.lotNo || '').trim();
         const qty = Number.isFinite(Number(lot?.qty)) ? Number(lot.qty) : 0;
+        const unitPrice = toNumber(lot?.unitPrice ?? c?.price);
 
         return {
-          id: `${p.code}__${receivedAt || 'unknown'}__${lotNo || 'nolot'}__${idx}`,
+          id: `${c.code}__${receivedAt || 'unknown'}__${lotNo || 'nolot'}__${idx}`,
           date: receivedAt || '-',
           type: 'รับเข้า stock',
-          code: p.code,
+          code: c.code,
           name,
           qty,
-          unit: p.unit || '-',
+          unit: c.unit || '-',
           lotNo: lotNo || '-',
           expiryDate: expiryDate || '-',
           ref: '',
+          unitPrice,
           cost,
         };
       });
@@ -108,56 +112,92 @@ export default function ProductMovements({
       const orderedAt = String(po?.orderedAt || '').trim();
       const items = Array.isArray(po?.items) ? po.items : [];
 
-      return items.map((it, idx) => {
-        const code = String(it?.code || '').trim();
-        const name = String(it?.nameTh || it?.nameEn || '').trim() || '-';
-        const orderedQty = Number.isFinite(Number(it?.qty))
-          ? Number(it.qty)
-          : 0;
-        const unit = String(it?.unit || '').trim() || '-';
-        const cost = toNumber(it?.price);
+      return items
+        .map((it, idx) => {
+          const code = String(it?.code || '').trim();
+          if (!code || !code.startsWith('C-')) return null;
 
-        const receivedQty = getEffectiveReceivedQty(status, it);
-        const hasReceipt =
-          (status === 'รับของแล้ว' || status === 'รับบางส่วน') &&
-          receivedQty > 0;
+          const name = String(it?.nameTh || it?.nameEn || '').trim() || '-';
+          const orderedQty = Number.isFinite(Number(it?.qty))
+            ? Number(it.qty)
+            : 0;
+          const unit = String(it?.unit || '').trim() || '-';
+          const unitPrice = toNumber(it?.price);
 
-        const type = hasReceipt ? 'รับเข้า (PO)' : 'สั่งซื้อ (PO)';
-        const receiptDate =
-          String(it?.receivedAt || '').trim() ||
-          String(po?.lastReceivedAt || '').trim() ||
-          orderedAt;
+          const receivedQty = getEffectiveReceivedQty(status, it);
+          const hasReceipt =
+            (status === 'รับของแล้ว' || status === 'รับบางส่วน') &&
+            receivedQty > 0;
 
-        const receivedLots = Array.isArray(it?.receivedLots)
-          ? it.receivedLots
-          : [];
-        const firstLot = receivedLots.find((l) => {
-          const lotNo = String(l?.lotNo || '').trim();
-          const expiryDate = String(l?.expiryDate || '').trim();
-          return Boolean(lotNo || expiryDate);
-        });
-        const lotNo = String(firstLot?.lotNo || '').trim();
-        const expiryDate = String(firstLot?.expiryDate || '').trim();
+          const type = hasReceipt ? 'รับเข้า (PO)' : 'สั่งซื้อ (PO)';
+          const receiptDate =
+            String(it?.receivedAt || '').trim() ||
+            String(po?.lastReceivedAt || '').trim() ||
+            orderedAt;
+
+          const receivedLots = Array.isArray(it?.receivedLots)
+            ? it.receivedLots
+            : [];
+          const firstLot = receivedLots.find((l) => {
+            const lotNo = String(l?.lotNo || '').trim();
+            const expiryDate = String(l?.expiryDate || '').trim();
+            return Boolean(lotNo || expiryDate);
+          });
+          const lotNo = String(firstLot?.lotNo || '').trim();
+          const expiryDate = String(firstLot?.expiryDate || '').trim();
+
+          return {
+            id: `PO__${poNo || 'unknown'}__${code || 'nocode'}__${
+              (hasReceipt ? receiptDate : orderedAt) || 'nodate'
+            }__${idx}`,
+            date: (hasReceipt ? receiptDate : orderedAt) || '-',
+            type,
+            code: code || '-',
+            name,
+            qty: hasReceipt ? receivedQty : orderedQty,
+            unit,
+            lotNo: hasReceipt && lotNo ? lotNo : '-',
+            expiryDate: hasReceipt && lotNo ? expiryDate || '-' : '-',
+            ref: poNo || '-',
+            unitPrice,
+            cost: unitPrice,
+          };
+        })
+        .filter(Boolean);
+    });
+
+    const issueMovements = base.flatMap((c) => {
+      const issues = Array.isArray(c?.stockIssues) ? c.stockIssues : [];
+      if (!issues.length) return [];
+
+      const name = c.nameTh || c.nameEn || '-';
+      const cost = toNumber(c?.price);
+
+      return issues.map((it, idx) => {
+        const issuedAt = String(it?.issuedAt || '').trim();
+        const lotNo = String(it?.lotNo || '').trim() || '-';
+        const expiryDate = String(it?.expiryDate || '').trim() || '-';
+        const qty = toNumber(it?.qty);
+        const note = String(it?.note || '').trim();
 
         return {
-          id: `PO__${poNo || 'unknown'}__${code || 'nocode'}__${
-            (hasReceipt ? receiptDate : orderedAt) || 'nodate'
-          }__${idx}`,
-          date: (hasReceipt ? receiptDate : orderedAt) || '-',
-          type,
-          code: code || '-',
+          id: `ISSUE__${c.code}__${issuedAt || 'nodate'}__${lotNo}__${idx}`,
+          date: issuedAt || '-',
+          type: 'ตัดใช้',
+          code: c.code,
           name,
-          qty: hasReceipt ? receivedQty : orderedQty,
-          unit,
-          lotNo: hasReceipt && lotNo ? lotNo : '-',
-          expiryDate: hasReceipt && lotNo ? expiryDate || '-' : '-',
-          ref: poNo || '-',
+          qty: qty ? -Math.abs(qty) : 0,
+          unit: c.unit || '-',
+          lotNo,
+          expiryDate,
+          ref: note,
+          unitPrice: cost,
           cost,
         };
       });
     });
 
-    let all = [...stockLotMovements, ...poMovements];
+    let all = [...stockLotMovements, ...poMovements, ...issueMovements];
 
     if (codeFilter) {
       all = all.filter((r) => String(r?.code || '').trim() === codeFilter);
@@ -189,7 +229,7 @@ export default function ProductMovements({
           .includes(q)
       );
     });
-  }, [products, query, filterCode]);
+  }, [consumables, query, filterCode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -234,9 +274,20 @@ export default function ProductMovements({
             marginBottom: 12,
           }}
         >
-          <h1 className="page-title">รายการเคลื่อนไหวสินค้า</h1>
+          <h1 className="page-title">รายการเคลื่อนไหววัสดุสิ้นเปลือง</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" className="button" onClick={() => onBack?.()}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onBackToConsumables?.()}
+            >
+              กลับหน้าวัสดุสิ้นเปลืองและอื่นๆ
+            </button>
+            <button
+              type="button"
+              className="button button--solid"
+              onClick={() => onBackToProducts?.()}
+            >
               กลับไปหน้ารายการสินค้า
             </button>
           </div>
@@ -247,8 +298,8 @@ export default function ProductMovements({
           style={{ display: 'flex', gap: 8, marginBottom: 12 }}
         >
           <input
-            aria-label="ค้นหารายการเคลื่อนไหวสินค้า"
-            placeholder="ค้นหารหัส / ชื่อสินค้า / เลข lot / ประเภท / PO"
+            aria-label="ค้นหารายการเคลื่อนไหววัสดุสิ้นเปลือง"
+            placeholder="ค้นหารหัส / ชื่อวัสดุ / เลข lot / ประเภท / PO"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1, padding: '8px 10px' }}
@@ -275,23 +326,17 @@ export default function ProductMovements({
               <th style={{ padding: 6, width: 90, whiteSpace: 'nowrap' }}>
                 วันที่
               </th>
-              <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
-                ประเภท
-              </th>
-              <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
-                อ้างอิง
-              </th>
               <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
                 รหัส
               </th>
-              <th style={{ padding: 6 }}>ชื่อสินค้า</th>
+              <th style={{ padding: 6, width: 220 }}>ชื่อวัสดุ</th>
               <th style={{ padding: 6, width: 55, textAlign: 'right' }}>
                 จำนวน
               </th>
               <th style={{ padding: 6, width: 55, whiteSpace: 'nowrap' }}>
                 หน่วย
               </th>
-              <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 140, whiteSpace: 'nowrap' }}>
                 เลข lot
               </th>
               <th style={{ padding: 6, width: 85, whiteSpace: 'nowrap' }}>
@@ -311,18 +356,6 @@ export default function ProductMovements({
               pagedRows.map((r) => (
                 <tr key={r.id} style={{ borderTop: '1px solid #eaeaea' }}>
                   <td style={{ padding: 6, whiteSpace: 'nowrap' }}>{r.date}</td>
-                  <td style={{ padding: 6, whiteSpace: 'nowrap' }}>{r.type}</td>
-                  <td
-                    style={{
-                      padding: 6,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                    title={r.ref || '-'}
-                  >
-                    {r.ref || '-'}
-                  </td>
                   <td
                     style={{
                       padding: 6,
@@ -425,7 +458,7 @@ export default function ProductMovements({
                         minWidth: 0,
                         boxSizing: 'border-box',
                       }}
-                      title="บันทึกต้นทุนของสินค้ารหัสนี้"
+                      title="บันทึกต้นทุนของวัสดุรหัสนี้"
                     >
                       บันทึก
                     </button>
@@ -434,8 +467,8 @@ export default function ProductMovements({
               ))
             ) : (
               <tr>
-                <td style={{ padding: 12, color: '#6b7280' }} colSpan={12}>
-                  ยังไม่มีรายการเคลื่อนไหวสินค้า
+                <td style={{ padding: 12, color: '#6b7280' }} colSpan={10}>
+                  ยังไม่มีรายการเคลื่อนไหววัสดุสิ้นเปลือง
                 </td>
               </tr>
             )}
@@ -466,6 +499,7 @@ export default function ProductMovements({
           >
             <option value={10}>10 / หน้า</option>
             <option value={20}>20 / หน้า</option>
+            <option value={30}>30 / หน้า</option>
             <option value={50}>50 / หน้า</option>
           </select>
 

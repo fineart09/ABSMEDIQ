@@ -4,8 +4,8 @@ const toCurrency = (n) => {
   const value = Number(n);
   if (!Number.isFinite(value)) return '-';
   return value.toLocaleString('th-TH', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 };
 
@@ -38,11 +38,15 @@ function ReceiveStockDetailsModal({
   item,
   title,
   withLotExpiry,
+  lotExpiryRequired,
+  withReceivePrice,
+  showItemPrice,
   onClose,
   onConfirm,
   labels,
 }) {
   const [qty, setQty] = useState(1);
+  const [receivePrice, setReceivePrice] = useState('');
   const [lotNo, setLotNo] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [error, setError] = useState('');
@@ -50,10 +54,13 @@ function ReceiveStockDetailsModal({
   useEffect(() => {
     if (!open) return;
     setQty(1);
+    setReceivePrice(
+      Number.isFinite(Number(item?.price)) ? String(Number(item.price)) : ''
+    );
     setLotNo('');
     setExpiryDate('');
     setError('');
-  }, [open, item?.code]);
+  }, [open, item?.code, item?.price]);
 
   if (!open || !item) return null;
 
@@ -61,6 +68,7 @@ function ReceiveStockDetailsModal({
 
   const handleConfirm = () => {
     const qtyNum = Number(qty);
+    const priceNum = Number(receivePrice);
     const lot = String(lotNo || '').trim();
     const exp = String(expiryDate || '').trim();
 
@@ -68,7 +76,13 @@ function ReceiveStockDetailsModal({
       setError('กรุณาระบุจำนวนรับเข้าให้ถูกต้อง');
       return;
     }
-    if (withLotExpiry) {
+    if (withReceivePrice) {
+      if (receivePrice === '' || !Number.isFinite(priceNum) || priceNum < 0) {
+        setError('กรุณาระบุราคาให้ถูกต้อง');
+        return;
+      }
+    }
+    if (withLotExpiry && lotExpiryRequired) {
       if (!lot) {
         setError('กรุณาระบุเลข lot');
         return;
@@ -83,10 +97,15 @@ function ReceiveStockDetailsModal({
     onConfirm?.({
       code: item.code,
       qty: qtyNum,
+      ...(withReceivePrice
+        ? {
+            unitPrice: priceNum,
+          }
+        : null),
       ...(withLotExpiry
         ? {
-            lotNo: lot,
-            expiryDate: exp,
+            ...(lot ? { lotNo: lot } : null),
+            ...(exp ? { expiryDate: exp } : null),
           }
         : null),
     });
@@ -125,8 +144,12 @@ function ReceiveStockDetailsModal({
             <div>{item.unit || '-'}</div>
             <div>{labels?.stock || 'คงเหลือปัจจุบัน'}</div>
             <div>{Number.isFinite(Number(item.stock)) ? item.stock : '-'}</div>
-            <div>{labels?.price || 'ราคา'}</div>
-            <div>{toCurrency(item.price)}</div>
+            {showItemPrice ? (
+              <>
+                <div>{labels?.price || 'ราคา'}</div>
+                <div>{toCurrency(item.price)}</div>
+              </>
+            ) : null}
           </div>
 
           <div
@@ -150,13 +173,34 @@ function ReceiveStockDetailsModal({
                 <input
                   className="input"
                   type="number"
-                  min={1}
-                  step={1}
+                  min={0}
+                  step="any"
                   value={qty}
                   onChange={(e) => setQty(e.target.value)}
+                  inputMode="decimal"
                   style={{ width: 'min(260px, 100%)' }}
                 />
               </div>
+
+              {withReceivePrice ? (
+                <>
+                  <div>{labels?.receivePrice || 'ราคา (ต่อหน่วย)'}</div>
+                  <div>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={receivePrice}
+                      onChange={(e) => setReceivePrice(e.target.value)}
+                      placeholder={
+                        labels?.receivePricePlaceholder || 'เช่น 120'
+                      }
+                      style={{ width: 'min(260px, 100%)' }}
+                    />
+                  </div>
+                </>
+              ) : null}
 
               {withLotExpiry ? (
                 <>
@@ -218,6 +262,9 @@ export default function ReceiveStockFlow({
   onReceive,
   codePrefix = 'ITM',
   withLotExpiry = true,
+  lotExpiryRequired = true,
+  withReceivePrice = false,
+  showItemPrice = true,
   labels,
 }) {
   const [query, setQuery] = useState('');
@@ -494,6 +541,9 @@ export default function ReceiveStockFlow({
         item={selected}
         title={title || 'รับสินค้าเข้า stock'}
         withLotExpiry={withLotExpiry}
+        lotExpiryRequired={lotExpiryRequired}
+        withReceivePrice={withReceivePrice}
+        showItemPrice={showItemPrice}
         labels={labels}
         onClose={() => setSelected(null)}
         onConfirm={(payload) => {
