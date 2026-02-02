@@ -1,40 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDateDMY, toTimestamp } from '../utils/date';
 
-import purchaseOrdersFull from '../mocks/purchaseOrdersFull';
-
 const toNumber = (n) => {
   const v = Number(n);
   return Number.isFinite(v) ? v : 0;
 };
 
-const getEffectiveReceivedQty = (poStatus, item) => {
-  const status = String(poStatus || '').trim();
-  const receivedQtyRaw = item?.receivedQty;
-  if (
-    status === 'รับของแล้ว' &&
-    (receivedQtyRaw === null || receivedQtyRaw === undefined)
-  ) {
-    return toNumber(item?.qty);
-  }
-  return toNumber(receivedQtyRaw);
-};
-
-const normalizeProducts = (src) => {
+const normalizeIngredients = (src) => {
   const list = Array.isArray(src) ? src : [];
   const usedCodes = new Set();
-  return list.map((p, i) => {
-    const rawCode = String(p?.code || '').trim();
-    let code = rawCode || `PRD${String(i + 1).padStart(3, '0')}`;
+  return list.map((c, i) => {
+    const rawCode = String(c?.code || '').trim();
+    let code = rawCode || `ING-${String(i + 1).padStart(4, '0')}`;
     while (usedCodes.has(code)) {
-      code = `PRD${String(i + 1 + usedCodes.size).padStart(3, '0')}`;
+      code = `ING-${String(i + 1 + usedCodes.size).padStart(4, '0')}`;
     }
     usedCodes.add(code);
 
-    const stock = Number.isFinite(Number(p?.stock)) ? Number(p.stock) : 0;
-    const status = p?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+    const stock = Number.isFinite(Number(c?.stock)) ? Number(c.stock) : 0;
+    const status = c?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+
     return {
-      ...p,
+      ...c,
       code,
       stock,
       status,
@@ -42,16 +29,18 @@ const normalizeProducts = (src) => {
   });
 };
 
-export default function ProductMovements({
-  products,
-  onBack,
-  onSaveCosts,
+export default function IngredientMovements({
+  ingredients,
   filterCode,
+  onBackToIngredients,
+  onBackToProducts,
+  onSaveCosts,
 }) {
   const [query, setQuery] = useState('');
   const [unitCostByRowId, setUnitCostByRowId] = useState({});
+  const [detailRow, setDetailRow] = useState(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(30);
 
   useEffect(() => {
     const code = String(filterCode || '').trim();
@@ -72,93 +61,75 @@ export default function ProductMovements({
   };
 
   const rows = useMemo(() => {
-    const base = normalizeProducts(products);
+    const base = normalizeIngredients(ingredients);
     const codeFilter = String(filterCode || '').trim();
 
-    const stockLotMovements = base.flatMap((p) => {
-      const lots = Array.isArray(p?.stockLots) ? p.stockLots : [];
-      const name = p.nameTh || p.nameEn || '-';
-      const cost = toNumber(p?.cost);
+    const stockLotMovements = base.flatMap((c) => {
+      const lots = Array.isArray(c?.stockLots) ? c.stockLots : [];
+      const name = c.nameTh || c.nameEn || '-';
+      const cost = toNumber(c?.price);
 
       return lots.map((lot, idx) => {
         const receivedAt = String(lot?.receivedAt || '').trim();
         const expiryDate = String(lot?.expiryDate || '').trim();
         const lotNo = String(lot?.lotNo || '').trim();
         const qty = Number.isFinite(Number(lot?.qty)) ? Number(lot.qty) : 0;
+        const unitPrice = toNumber(lot?.unitPrice ?? c?.price);
 
         return {
-          id: `${p.code}__${receivedAt || 'unknown'}__${lotNo || 'nolot'}__${idx}`,
+          id: `${c.code}__${receivedAt || 'unknown'}__${lotNo || 'nolot'}__${idx}`,
           date: receivedAt || '-',
           type: 'รับเข้า stock',
-          code: p.code,
+          code: c.code,
           name,
           qty,
-          unit: p.unit || '-',
+          unit: c.unit || '-',
           lotNo: lotNo || '-',
           expiryDate: expiryDate || '-',
           ref: '',
+          note: '',
+          issuedBy: 'ระบบ',
+          unitPrice,
           cost,
         };
       });
     });
 
-    const poList = Array.isArray(purchaseOrdersFull) ? purchaseOrdersFull : [];
-    const poMovements = poList.flatMap((po) => {
-      const poNo = String(po?.poNo || po?.id || '').trim();
-      const status = String(po?.status || '').trim();
-      const orderedAt = String(po?.orderedAt || '').trim();
-      const items = Array.isArray(po?.items) ? po.items : [];
+    const issueMovements = base.flatMap((c) => {
+      const issues = Array.isArray(c?.stockIssues) ? c.stockIssues : [];
+      if (!issues.length) return [];
 
-      return items.map((it, idx) => {
-        const code = String(it?.code || '').trim();
-        const name = String(it?.nameTh || it?.nameEn || '').trim() || '-';
-        const orderedQty = Number.isFinite(Number(it?.qty))
-          ? Number(it.qty)
-          : 0;
-        const unit = String(it?.unit || '').trim() || '-';
-        const cost = toNumber(it?.price);
+      const name = c.nameTh || c.nameEn || '-';
+      const cost = toNumber(c?.price);
 
-        const receivedQty = getEffectiveReceivedQty(status, it);
-        const hasReceipt =
-          (status === 'รับของแล้ว' || status === 'รับบางส่วน') &&
-          receivedQty > 0;
-
-        const type = hasReceipt ? 'รับเข้า (PO)' : 'สั่งซื้อ (PO)';
-        const receiptDate =
-          String(it?.receivedAt || '').trim() ||
-          String(po?.lastReceivedAt || '').trim() ||
-          orderedAt;
-
-        const receivedLots = Array.isArray(it?.receivedLots)
-          ? it.receivedLots
-          : [];
-        const firstLot = receivedLots.find((l) => {
-          const lotNo = String(l?.lotNo || '').trim();
-          const expiryDate = String(l?.expiryDate || '').trim();
-          return Boolean(lotNo || expiryDate);
-        });
-        const lotNo = String(firstLot?.lotNo || '').trim();
-        const expiryDate = String(firstLot?.expiryDate || '').trim();
+      return issues.map((it, idx) => {
+        const issuedAt = String(it?.issuedAt || '').trim();
+        const lotNo = String(it?.lotNo || '').trim() || '-';
+        const expiryDate = String(it?.expiryDate || '').trim() || '-';
+        const qty = toNumber(it?.qty);
+        const note = String(it?.note || '').trim();
 
         return {
-          id: `PO__${poNo || 'unknown'}__${code || 'nocode'}__${
-            (hasReceipt ? receiptDate : orderedAt) || 'nodate'
-          }__${idx}`,
-          date: (hasReceipt ? receiptDate : orderedAt) || '-',
-          type,
-          code: code || '-',
+          id: `ISSUE__${c.code}__${issuedAt || 'nodate'}__${lotNo}__${idx}`,
+          date: issuedAt || '-',
+          type: 'ตัดใช้เพื่อผลิต',
+          code: c.code,
           name,
-          qty: hasReceipt ? receivedQty : orderedQty,
-          unit,
-          lotNo: hasReceipt && lotNo ? lotNo : '-',
-          expiryDate: hasReceipt && lotNo ? expiryDate || '-' : '-',
-          ref: poNo || '-',
+          qty: qty ? -Math.abs(qty) : 0,
+          unit: c.unit || '-',
+          lotNo,
+          expiryDate,
+          ref: note,
+          note,
+          issuedBy:
+            String(it?.issuedBy || it?.user || '').trim() || 'ผู้ใช้งานระบบ',
+          unitPrice: cost,
           cost,
         };
       });
     });
 
-    let all = [...stockLotMovements, ...poMovements];
+    let all = [...stockLotMovements, ...issueMovements];
 
     if (codeFilter) {
       all = all.filter((r) => String(r?.code || '').trim() === codeFilter);
@@ -195,7 +166,7 @@ export default function ProductMovements({
           .includes(q)
       );
     });
-  }, [products, query, filterCode]);
+  }, [ingredients, query, filterCode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -240,9 +211,20 @@ export default function ProductMovements({
             marginBottom: 12,
           }}
         >
-          <h1 className="page-title">รายการเคลื่อนไหวสินค้า</h1>
+          <h1 className="page-title">รายการเคลื่อนไหว Ingredient</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" className="button" onClick={() => onBack?.()}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onBackToIngredients?.()}
+            >
+              กลับหน้าคลัง Ingredient
+            </button>
+            <button
+              type="button"
+              className="button button--solid"
+              onClick={() => onBackToProducts?.()}
+            >
               กลับไปหน้ารายการสินค้า
             </button>
           </div>
@@ -253,8 +235,8 @@ export default function ProductMovements({
           style={{ display: 'flex', gap: 8, marginBottom: 12 }}
         >
           <input
-            aria-label="ค้นหารายการเคลื่อนไหวสินค้า"
-            placeholder="ค้นหารหัส / ชื่อสินค้า / เลข lot / ประเภท / PO"
+            aria-label="ค้นหารายการเคลื่อนไหว Ingredient"
+            placeholder="ค้นหารหัส / ชื่อ / เลข lot / ประเภท"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1, padding: '8px 10px' }}
@@ -278,35 +260,43 @@ export default function ProductMovements({
         >
           <thead>
             <tr>
-              <th style={{ padding: 6, width: 90, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 85, whiteSpace: 'nowrap' }}>
                 วันที่
               </th>
-              <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 60, whiteSpace: 'nowrap' }}>
                 ประเภท
               </th>
-              <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
-                อ้างอิง
-              </th>
-              <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 90, whiteSpace: 'nowrap' }}>
                 รหัส
               </th>
-              <th style={{ padding: 6 }}>ชื่อสินค้า</th>
+              <th style={{ padding: 6, width: 150 }}>ชื่อ Ingredient</th>
               <th style={{ padding: 6, width: 55, textAlign: 'right' }}>
                 จำนวน
               </th>
-              <th style={{ padding: 6, width: 55, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 50, whiteSpace: 'nowrap' }}>
                 หน่วย
               </th>
-              <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 100, whiteSpace: 'nowrap' }}>
                 เลข lot
               </th>
-              <th style={{ padding: 6, width: 85, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
                 วันหมดอายุ
               </th>
-              <th style={{ padding: 6, width: 90, textAlign: 'right' }}>
+              <th style={{ padding: 6, width: 85, textAlign: 'right' }}>
                 ต้นทุนต่อหน่วย
               </th>
-              <th style={{ padding: 6, width: 90, textAlign: 'right' }}>รวม</th>
+              <th style={{ padding: 6, width: 85, textAlign: 'right' }}>รวม</th>
+              <th
+                style={{
+                  padding: 6,
+                  width: 40,
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center',
+                }}
+                title="รายละเอียด"
+              >
+                <span aria-hidden="true">🔍</span>
+              </th>
               <th style={{ padding: 6, width: 60, whiteSpace: 'nowrap' }}>
                 บันทึก
               </th>
@@ -319,23 +309,17 @@ export default function ProductMovements({
                   <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
                     {formatDateDMY(r.date)}
                   </td>
-                  <td style={{ padding: 6, whiteSpace: 'nowrap' }}>{r.type}</td>
-                  <td
-                    style={{
-                      padding: 6,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                    title={r.ref || '-'}
-                  >
-                    {r.ref || '-'}
+                  <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                    {String(r.type || '').includes('รับ')
+                      ? 'รับเข้า'
+                      : 'ตัดใช้'}
                   </td>
                   <td
                     style={{
                       padding: 6,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
+                      maxWidth: 90,
                     }}
                   >
                     <span
@@ -347,6 +331,7 @@ export default function ProductMovements({
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         verticalAlign: 'top',
+                        fontSize: 'inherit',
                       }}
                       title={r.code}
                     >
@@ -412,6 +397,18 @@ export default function ProductMovements({
                       maximumFractionDigits: 2,
                     })}
                   </td>
+                  <td style={{ padding: 6, textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => setDetailRow(r)}
+                      title="รายละเอียด"
+                      aria-label="รายละเอียด"
+                      style={{ padding: '4px 6px', minWidth: 0 }}
+                    >
+                      🔍
+                    </button>
+                  </td>
                   <td style={{ padding: 6, overflow: 'hidden' }}>
                     <button
                       type="button"
@@ -433,7 +430,7 @@ export default function ProductMovements({
                         minWidth: 0,
                         boxSizing: 'border-box',
                       }}
-                      title="บันทึกต้นทุนของสินค้ารหัสนี้"
+                      title="บันทึกต้นทุนของ Ingredient รหัสนี้"
                     >
                       บันทึก
                     </button>
@@ -443,7 +440,7 @@ export default function ProductMovements({
             ) : (
               <tr>
                 <td style={{ padding: 12, color: '#6b7280' }} colSpan={12}>
-                  ยังไม่มีรายการเคลื่อนไหวสินค้า
+                  ยังไม่มีรายการเคลื่อนไหว Ingredient
                 </td>
               </tr>
             )}
@@ -474,6 +471,7 @@ export default function ProductMovements({
           >
             <option value={10}>10 / หน้า</option>
             <option value={20}>20 / หน้า</option>
+            <option value={30}>30 / หน้า</option>
             <option value={50}>50 / หน้า</option>
           </select>
 
@@ -516,6 +514,52 @@ export default function ProductMovements({
           </button>
         </div>
       </div>
+      {detailRow ? (
+        <div className="modal-overlay" onClick={() => setDetailRow(null)}>
+          <div
+            className="modal modal--customer-details"
+            role="dialog"
+            aria-modal="true"
+            aria-label="รายละเอียดการตัดใช้ Ingredient"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>รายละเอียดการตัดใช้ Ingredient</h3>
+            </div>
+            <div className="modal-body">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '160px 1fr',
+                  gap: '8px 12px',
+                }}
+              >
+                <div>ประเภท</div>
+                <div>
+                  {String(detailRow.type || '').includes('รับ')
+                    ? 'รับเข้า'
+                    : 'ตัดใช้'}
+                </div>
+                <div>หมายเหตุ</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {detailRow.note || '-'}
+                </div>
+                <div>ผู้สั่งตัด</div>
+                <div>{detailRow.issuedBy || '-'}</div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setDetailRow(null)}
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

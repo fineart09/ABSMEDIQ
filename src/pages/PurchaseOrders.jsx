@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateDMY } from '../utils/date';
 import MOCK_PURCHASE_ORDERS_FULL from '../mocks/purchaseOrdersFull';
 
 const toNumber = (n) => {
@@ -13,17 +14,6 @@ const toCurrency = (n) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-};
-
-const toDateTH = (iso) => {
-  if (!iso) return '-';
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return String(iso);
-    return d.toLocaleDateString('th-TH');
-  } catch {
-    return String(iso);
-  }
 };
 
 const sumTotal = (order) => {
@@ -405,7 +395,7 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
         })
         .join('\n');
       const receivedExpiryText = receivedPairs
-        .map((x) => x.expiryDate || '-')
+        .map((x) => formatDateDMY(x.expiryDate || '-'))
         .join('\n');
 
       return {
@@ -425,7 +415,7 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
 
   if (!order) return null;
 
-  const orderedAt = toDateTH(order?.orderedAt);
+  const orderedAt = formatDateDMY(order?.orderedAt);
   const total = rows.reduce((acc, r) => acc + toNumber(r?.lineTotal), 0);
 
   return (
@@ -722,7 +712,7 @@ export default function PurchaseOrders({
                   style={{ borderTop: '1px solid #eaeaea' }}
                 >
                   <td style={{ padding: 8 }}>{o.poNo || '-'}</td>
-                  <td style={{ padding: 8 }}>{toDateTH(o.orderedAt)}</td>
+                  <td style={{ padding: 8 }}>{formatDateDMY(o.orderedAt)}</td>
                   <td style={{ padding: 8 }}>{o.supplier || '-'}</td>
                   <td style={{ padding: 8 }}>{countItems(o)}</td>
                   <td style={{ padding: 8 }}>{toCurrency(sumTotal(o))}</td>

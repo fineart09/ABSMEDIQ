@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDMY, toTimestamp } from '../utils/date';
 
 import purchaseOrdersFull from '../mocks/purchaseOrdersFull';
 
@@ -203,9 +204,14 @@ export default function ConsumableMovements({
       all = all.filter((r) => String(r?.code || '').trim() === codeFilter);
     }
 
-    all.sort((a, b) =>
-      String(b.date || '').localeCompare(String(a.date || ''))
-    );
+    all.sort((a, b) => {
+      const timeA = toTimestamp(a?.date);
+      const timeB = toTimestamp(b?.date);
+      if (timeA !== null && timeB !== null) return timeB - timeA;
+      if (timeA !== null) return -1;
+      if (timeB !== null) return 1;
+      return String(b?.date || '').localeCompare(String(a?.date || ''));
+    });
 
     const q = query.trim().toLowerCase();
     if (!q) return all;
@@ -355,7 +361,9 @@ export default function ConsumableMovements({
             {pagedRows.length ? (
               pagedRows.map((r) => (
                 <tr key={r.id} style={{ borderTop: '1px solid #eaeaea' }}>
-                  <td style={{ padding: 6, whiteSpace: 'nowrap' }}>{r.date}</td>
+                  <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                    {formatDateDMY(r.date)}
+                  </td>
                   <td
                     style={{
                       padding: 6,
@@ -394,7 +402,7 @@ export default function ConsumableMovements({
                     {r.lotNo}
                   </td>
                   <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
-                    {r.expiryDate}
+                    {formatDateDMY(r.expiryDate)}
                   </td>
                   <td style={{ padding: 6 }}>
                     <input

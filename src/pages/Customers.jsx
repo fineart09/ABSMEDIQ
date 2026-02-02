@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateDMY } from '../utils/date';
 import ENRICHED_CUSTOMERS from '../mocks/customersFull';
 const displayName = (c) => {
   const thPrefix = c?.name?.prefixTh || '';
@@ -43,6 +44,8 @@ function CustomerModal({ customer, onClose }) {
   const email = full?.details?.email || customer.email || '';
   const notes = full?.details?.notes || '';
   const registeredAt = full?.lastVisit || customer.lastVisit || '';
+  const birthDateText = formatDateDMY(birthDate);
+  const registeredAtText = formatDateDMY(registeredAt);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -82,7 +85,7 @@ function CustomerModal({ customer, onClose }) {
             <div>ชื่อเล่น</div>
             <div>{nickname || '-'}</div>
             <div>วันเกิด</div>
-            <div>{birthDate || '-'}</div>
+            <div>{birthDateText || '-'}</div>
             <div>เพศ</div>
             <div>{gender || '-'}</div>
             <div>กรุ๊ปเลือด</div>
@@ -94,7 +97,7 @@ function CustomerModal({ customer, onClose }) {
             <div>หมายเหตุ</div>
             <div>{notes || '-'}</div>
             <div>วันที่ลงทะเบียน</div>
-            <div>{registeredAt || '-'}</div>
+            <div>{registeredAtText || '-'}</div>
           </div>
         </div>
         <div className="modal-actions">
@@ -268,8 +271,8 @@ export default function Customers({ onEdit, onCreateNew, statusOverrides }) {
                       (c.status === 'ใช้งาน'
                         ? 'active'
                         : c.status === 'ไม่ใช้งาน'
-                        ? 'inactive'
-                        : String(c.status || '').toLowerCase())
+                          ? 'inactive'
+                          : String(c.status || '').toLowerCase())
                     }
                   >
                     {c.status}

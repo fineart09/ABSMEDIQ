@@ -6,6 +6,7 @@ import Customers from './pages/Customers.jsx';
 import EditCustomer from './pages/EditCustomer.jsx';
 import EditProduct from './pages/EditProduct.jsx';
 import EditConsumable from './pages/EditConsumable.jsx';
+import EditIngredient from './pages/EditIngredient.jsx';
 import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
 import Products from './pages/Products.jsx';
 // import PurchaseHome from './pages/PurchaseHome.jsx';
@@ -18,10 +19,13 @@ import Consumables from './pages/Consumables.jsx';
 import ReceiveConsumablesStock from './pages/ReceiveConsumablesStock.jsx';
 import Ingredients from './pages/Ingredients.jsx';
 import ConsumableMovements from './pages/ConsumableMovements.jsx';
+import IngredientMovements from './pages/IngredientMovements.jsx';
+import ReceiveIngredientsStock from './pages/ReceiveIngredientsStock.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
 import CONSUMABLES_FULL from './mocks/consumablesFull.js';
+import INGREDIENTS_FULL from './mocks/ingredientsFull.js';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -58,14 +62,95 @@ export default function App() {
     return rest;
   };
 
+  const getIngredientAvailableStock = (item) => {
+    const lots = Array.isArray(item?.stockLots) ? item.stockLots : [];
+    const lotSum = lots.reduce((acc, lot) => {
+      const q = Number(lot?.qty);
+      return acc + (Number.isFinite(q) ? q : 0);
+    }, 0);
+    if (lots.length) return lotSum;
+    const stock = Number(item?.stock);
+    return Number.isFinite(stock) ? stock : 0;
+  };
+
+  const consumeIngredientFromLots = ({ lots, qty }) => {
+    const src = Array.isArray(lots) ? lots : [];
+    const desired = Number(qty);
+    if (!Number.isFinite(desired) || desired <= 0) {
+      return { ok: false, error: 'กรุณาระบุจำนวนตัดใช้ให้ถูกต้อง' };
+    }
+
+    const indexed = src.map((lot, idx) => ({ lot, idx }));
+    indexed.sort((a, b) => {
+      const aExp = String(a.lot?.expiryDate || '').trim();
+      const bExp = String(b.lot?.expiryDate || '').trim();
+      const expCmp = aExp.localeCompare(bExp);
+      if (aExp && bExp && expCmp !== 0) return expCmp;
+      if (aExp && !bExp) return -1;
+      if (!aExp && bExp) return 1;
+
+      const aRecv = String(a.lot?.receivedAt || '').trim();
+      const bRecv = String(b.lot?.receivedAt || '').trim();
+      const recvCmp = aRecv.localeCompare(bRecv);
+      if (aRecv && bRecv && recvCmp !== 0) return recvCmp;
+      if (aRecv && !bRecv) return -1;
+      if (!aRecv && bRecv) return 1;
+
+      const aNo = String(a.lot?.lotNo || '').trim();
+      const bNo = String(b.lot?.lotNo || '').trim();
+      const noCmp = aNo.localeCompare(bNo);
+      if (noCmp !== 0) return noCmp;
+
+      return a.idx - b.idx;
+    });
+
+    const nextLots = src.map((l) => ({ ...l }));
+    const consumed = [];
+
+    let remaining = desired;
+    for (const { idx } of indexed) {
+      if (remaining <= 0) break;
+      const lot = nextLots[idx];
+      const available = Number(lot?.qty);
+      const avail = Number.isFinite(available) ? available : 0;
+      if (avail <= 0) continue;
+
+      const take = Math.min(avail, remaining);
+      if (take <= 0) continue;
+
+      lot.qty = avail - take;
+      remaining -= take;
+      consumed.push({
+        lotNo: String(lot?.lotNo || '').trim() || '-',
+        expiryDate: String(lot?.expiryDate || '').trim() || '-',
+        receivedAt: String(lot?.receivedAt || '').trim() || '-',
+        qty: take,
+      });
+    }
+
+    if (remaining > 0) {
+      return { ok: false, error: 'จำนวนตัดใช้มากกว่าคงเหลือ' };
+    }
+
+    const newStock = nextLots.reduce((acc, lot) => {
+      const q = Number(lot?.qty);
+      return acc + (Number.isFinite(q) ? q : 0);
+    }, 0);
+
+    return { ok: true, nextLots, consumed, newStock };
+  };
+
   const [modal, setModal] = useState({ open: false, title: '' });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
   const [consumableMovementFilterCode, setConsumableMovementFilterCode] =
     useState(null);
+  const [ingredientMovementFilterCode, setIngredientMovementFilterCode] =
+    useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingConsumable, setEditingConsumable] = useState(null);
+  const [editingIngredient, setEditingIngredient] = useState(null);
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [ingredientDraft, setIngredientDraft] = useState([]);
@@ -77,6 +162,9 @@ export default function App() {
   });
   const [consumables, setConsumables] = useState(() =>
     Array.isArray(CONSUMABLES_FULL) ? CONSUMABLES_FULL : []
+  );
+  const [ingredients, setIngredients] = useState(() =>
+    Array.isArray(INGREDIENTS_FULL) ? INGREDIENTS_FULL : []
   );
   const [suppliers, setSuppliers] = useState(() =>
     Array.isArray(SUPPLIERS_FULL) ? SUPPLIERS_FULL : []
@@ -151,6 +239,9 @@ export default function App() {
       'ค้นหารายการสินค้า',
       'รายการเคลื่อนไหวสินค้า',
       'Ingredient',
+      'แก้ไขรายละเอียด Ingredient',
+      'รายการเคลื่อนไหว Ingredient',
+      'รับ Ingredient เข้า stock',
       'วัสดุสิ้นเปลืองและอื่นๆ',
       'รับวัสดุสิ้นเปลืองเข้า stock',
       'แก้ไขรายละเอียดวัสดุสิ้นเปลือง',
@@ -896,36 +987,189 @@ export default function App() {
       case 'Ingredient':
         return (
           <Ingredients
-            products={products}
+            items={ingredients}
+            onItemsChange={setIngredients}
             draft={ingredientDraft}
             onDraftChange={setIngredientDraft}
             onBack={() => setActive('รายการสินค้า')}
+            onReceiveStock={() => setActive('รับ Ingredient เข้า stock')}
+            onViewMovements={(ingredient) => {
+              const code = String(ingredient?.code || '').trim();
+              setIngredientMovementFilterCode(code || null);
+              setActive('รายการเคลื่อนไหว Ingredient');
+            }}
+            onEdit={(ingredient) => {
+              setEditingIngredient(ingredient);
+              setActive('แก้ไขรายละเอียด Ingredient');
+            }}
             onProceed={(items) => {
               const list = Array.isArray(items) ? items : [];
-              const lines = list
-                .filter((x) => x && typeof x === 'object')
-                .map((x) => {
-                  const code = String(x.code || '').trim();
-                  const name = String(x.nameTh || x.nameEn || '').trim();
-                  const qty =
-                    x.qty === '' || x.qty === null || x.qty === undefined
-                      ? ''
-                      : x.qty;
-                  const unit = String(x.unit || '').trim();
-                  const note = String(x.note || '').trim();
-                  const head = [code, name].filter(Boolean).join(' ');
-                  const amount = [qty, unit]
-                    .filter((v) => String(v).trim())
-                    .join(' ');
-                  return `- ${head}${amount ? `: ${amount}` : ''}${note ? ` (${note})` : ''}`;
-                })
-                .join('\n');
+              if (list.length === 0) {
+                openModal('ยังไม่ได้เลือก Ingredient');
+                return;
+              }
 
-              setCreateProductFromIngredients({
-                description: lines ? `Ingredients\n${lines}` : '',
+              const now = new Date().toISOString().slice(0, 10);
+              const currentIngredients = Array.isArray(ingredients)
+                ? ingredients
+                : [];
+              const byCode = new Map(
+                currentIngredients.map((i) => [String(i?.code || '').trim(), i])
+              );
+              const updates = new Map();
+
+              for (const it of list) {
+                const codeKey = String(it?.code || '').trim();
+                if (!codeKey) {
+                  openModal('ตัด Ingredient ไม่สำเร็จ: ไม่พบรหัส Ingredient');
+                  return;
+                }
+                const ingredient = byCode.get(codeKey);
+                if (!ingredient) {
+                  openModal(`ตัด Ingredient ไม่สำเร็จ: ไม่พบ ${codeKey}`);
+                  return;
+                }
+
+                const qtyNum = Number(it?.qty);
+                if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+                  openModal(
+                    `ตัด Ingredient ไม่สำเร็จ: จำนวนไม่ถูกต้อง (${codeKey})`
+                  );
+                  return;
+                }
+
+                const available = getIngredientAvailableStock(ingredient);
+                if (qtyNum > available) {
+                  openModal(
+                    `ตัด Ingredient ไม่สำเร็จ: จำนวนมากกว่าคงเหลือ (${codeKey})`
+                  );
+                  return;
+                }
+
+                const lots = Array.isArray(ingredient?.stockLots)
+                  ? ingredient.stockLots
+                  : [];
+                const consumeResult = lots.length
+                  ? consumeIngredientFromLots({ lots, qty: qtyNum })
+                  : {
+                      ok: true,
+                      nextLots: lots,
+                      consumed: [],
+                      newStock: available - qtyNum,
+                    };
+
+                if (!consumeResult.ok) {
+                  openModal(
+                    `ตัด Ingredient ไม่สำเร็จ: ${consumeResult.error || codeKey}`
+                  );
+                  return;
+                }
+
+                updates.set(codeKey, {
+                  qty: qtyNum,
+                  note: String(it?.note || '').trim(),
+                  consumeResult,
+                });
+              }
+
+              setIngredients((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                return src.map((ingredient) => {
+                  const codeKey = String(ingredient?.code || '').trim();
+                  const update = updates.get(codeKey);
+                  if (!update) return ingredient;
+
+                  const existingIssues = Array.isArray(ingredient?.stockIssues)
+                    ? ingredient.stockIssues
+                    : [];
+
+                  const consumedLots = update.consumeResult.consumed || [];
+                  const issueEntries = consumedLots.length
+                    ? consumedLots.map((lot) => ({
+                        issuedAt: now,
+                        lotNo: String(lot?.lotNo || '').trim() || '-',
+                        expiryDate: String(lot?.expiryDate || '').trim() || '-',
+                        qty: Number(lot?.qty) || update.qty,
+                        note: update.note,
+                        issuedBy: 'ผู้ใช้งานระบบ',
+                      }))
+                    : [
+                        {
+                          issuedAt: now,
+                          lotNo: '-',
+                          expiryDate: '-',
+                          qty: update.qty,
+                          note: update.note,
+                          issuedBy: 'ผู้ใช้งานระบบ',
+                        },
+                      ];
+
+                  const nextStock = Number.isFinite(
+                    Number(update.consumeResult.newStock)
+                  )
+                    ? Number(update.consumeResult.newStock)
+                    : Math.max(
+                        0,
+                        getIngredientAvailableStock(ingredient) - update.qty
+                      );
+
+                  return {
+                    ...ingredient,
+                    stock: nextStock,
+                    status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                    updatedAt: now,
+                    stockLots:
+                      update.consumeResult.nextLots || ingredient.stockLots,
+                    stockIssues: [...existingIssues, ...issueEntries],
+                  };
+                });
               });
-              setEditingProduct(null);
-              setActive('สร้างรายการสินค้าใหม่');
+
+              setIngredientDraft([]);
+              openModal('ตัดยาสั่งผลิดเรียบร้อยแล้ว');
+            }}
+          />
+        );
+      case 'แก้ไขรายละเอียด Ingredient':
+        return (
+          <EditIngredient
+            initial={editingIngredient}
+            onCancel={() => {
+              setEditingIngredient(null);
+              setActive('Ingredient');
+            }}
+            onSave={(data) => {
+              const codeKey = String(data?.code || '').trim();
+              if (!codeKey) {
+                openModal('บันทึกข้อมูล Ingredient ไม่สำเร็จ: ไม่พบรหัส');
+                return;
+              }
+
+              setIngredients((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                const exists = src.some(
+                  (it) => String(it?.code || '').trim() === codeKey
+                );
+                if (!exists) {
+                  openModal(
+                    `บันทึกข้อมูล Ingredient ไม่สำเร็จ: ไม่พบ ${codeKey}`
+                  );
+                  return src;
+                }
+
+                return src.map((it) => {
+                  if (String(it?.code || '').trim() !== codeKey) return it;
+                  return {
+                    ...it,
+                    ...data,
+                    code: codeKey,
+                  };
+                });
+              });
+
+              setEditingIngredient(null);
+              setActive('Ingredient');
+              openModal('บันทึกข้อมูล Ingredient สำเร็จ');
             }}
           />
         );
@@ -945,6 +1189,61 @@ export default function App() {
               setActive('แก้ไขรายละเอียดวัสดุสิ้นเปลือง');
             }}
             onBack={() => setActive('รายการสินค้า')}
+          />
+        );
+      case 'รายการเคลื่อนไหว Ingredient':
+        return (
+          <IngredientMovements
+            ingredients={ingredients}
+            filterCode={ingredientMovementFilterCode}
+            onBackToIngredients={() => setActive('Ingredient')}
+            onBackToProducts={() => setActive('รายการสินค้า')}
+            onSaveCosts={({ code, cost }) => {
+              const codeKey = String(code || '').trim();
+              const costNum = Number(cost);
+              if (!codeKey) {
+                openModal('บันทึกต้นทุนไม่สำเร็จ: ไม่พบรหัส Ingredient');
+                return;
+              }
+              if (!codeKey.startsWith('ING-')) {
+                openModal(
+                  `บันทึกต้นทุนไม่สำเร็จ: รหัส Ingredient ไม่ถูกต้อง (${codeKey})`
+                );
+                return;
+              }
+              if (!Number.isFinite(costNum) || costNum <= 0) {
+                openModal(
+                  `บันทึกต้นทุนไม่สำเร็จ: ต้นทุนไม่ถูกต้อง (${codeKey})`
+                );
+                return;
+              }
+
+              setIngredients((prev) => {
+                const src = Array.isArray(prev) ? prev : [];
+                const exists = src.some(
+                  (c) => String(c?.code || '').trim() === codeKey
+                );
+                if (!exists) {
+                  openModal(
+                    `บันทึกต้นทุนไม่สำเร็จ: ไม่พบ Ingredient ${codeKey}`
+                  );
+                  return src;
+                }
+
+                return src.map((c) => {
+                  const cCode = String(c?.code || '').trim();
+                  if (cCode !== codeKey) return c;
+                  return {
+                    ...c,
+                    price: costNum,
+                  };
+                });
+              });
+
+              openModal(
+                `บันทึกต้นทุนสำเร็จ: ${codeKey} = ${costNum.toLocaleString('th-TH')}`
+              );
+            }}
           />
         );
       case 'รายการเคลื่อนไหววัสดุสิ้นเปลือง':
@@ -1124,6 +1423,73 @@ export default function App() {
               const receivedAt = new Date().toISOString().slice(0, 10);
 
               setConsumables((prev) => {
+                const list = Array.isArray(prev) ? prev : [];
+                return list.map((it) => {
+                  if (String(it?.code || '').trim() !== codeKey) return it;
+
+                  const currentStock = Number.isFinite(Number(it?.stock))
+                    ? Number(it.stock)
+                    : 0;
+                  const nextStock = currentStock + qtyNum;
+                  const stockLots = Array.isArray(it?.stockLots)
+                    ? it.stockLots
+                    : [];
+
+                  return {
+                    ...it,
+                    stock: nextStock,
+                    status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                    updatedAt: receivedAt,
+                    stockLots: [
+                      ...stockLots,
+                      {
+                        qty: qtyNum,
+                        receivedAt,
+                        ...(lotKey ? { lotNo: lotKey } : null),
+                        ...(expKey ? { expiryDate: expKey } : null),
+                      },
+                    ],
+                  };
+                });
+              });
+
+              openModal(`รับเข้า stock สำเร็จ: ${codeKey} +${qtyNum}`);
+            }}
+          />
+        );
+      case 'รับ Ingredient เข้า stock':
+        return (
+          <ReceiveIngredientsStock
+            existingIngredients={ingredients}
+            onCancel={() => setActive('Ingredient')}
+            onReceive={({ code, qty, lotNo, expiryDate }) => {
+              const codeKey = String(code || '').trim();
+              const qtyNum = Number(qty);
+              const lotKey = String(lotNo || '').trim();
+              const expKey = String(expiryDate || '').trim();
+              if (!codeKey) {
+                openModal('รับเข้า stock ไม่สำเร็จ: ไม่พบรหัส Ingredient');
+                return;
+              }
+              if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+                openModal('รับเข้า stock ไม่สำเร็จ: จำนวนไม่ถูกต้อง');
+                return;
+              }
+
+              if (
+                !(Array.isArray(ingredients) ? ingredients : []).some(
+                  (it) => String(it?.code || '').trim() === codeKey
+                )
+              ) {
+                openModal(
+                  `รับเข้า stock ไม่สำเร็จ: ไม่พบ Ingredient ${codeKey}`
+                );
+                return;
+              }
+
+              const receivedAt = new Date().toISOString().slice(0, 10);
+
+              setIngredients((prev) => {
                 const list = Array.isArray(prev) ? prev : [];
                 return list.map((it) => {
                   if (String(it?.code || '').trim() !== codeKey) return it;

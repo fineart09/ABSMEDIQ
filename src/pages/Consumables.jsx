@@ -22,15 +22,6 @@ const normalizeWarehouse = (value) => {
   return ALLOWED_WAREHOUSES.has(wh) ? wh : WAREHOUSE_OPTIONS[0] || '1';
 };
 
-const toCurrency = (n) => {
-  const value = Number(n);
-  if (!Number.isFinite(value)) return '-';
-  return value.toLocaleString('th-TH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
-
 const normalizeConsumables = (items) => {
   const src = Array.isArray(items) ? items : [];
   return src.map((item, idx) => {
