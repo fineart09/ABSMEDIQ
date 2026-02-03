@@ -9,6 +9,8 @@
     "build:iis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-iis.ps1",
     "lint": "eslint .",
     "preview": "vite preview",
+    "server": "node server.js",
+    "seed:customers": "node scripts/seed-customers.js",
     "auto-sync": "node scripts/git-auto-sync.js"
   },
   "dependencies": {
@@ -16,6 +18,10 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
+    "express": "^4.21.2",
+    "mssql": "^11.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

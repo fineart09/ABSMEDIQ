@@ -184,6 +184,24 @@ export default function App() {
   const dropdownButtonRefs = useRef({});
   const openModal = (title) => setModal({ open: true, title });
   const closeModal = () => setModal({ open: false, title: '' });
+  const createCustomerOnServer = async (payload) => {
+    const res = await fetch('/api/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    if (!res.ok) {
+      const message = body?.error || 'บันทึกลูกค้าไม่สำเร็จ';
+      throw new Error(message);
+    }
+    return body;
+  };
   // handleClick now only sets the active page so navbar acts like SPA navigation
   const handleClick = (title) => {
     setActive(title);
@@ -445,10 +463,14 @@ export default function App() {
               initial={null}
               initialConditions={{}}
               onCancel={() => setActive('รายชื่อลูกค้า')}
-              onSave={(data) => {
-                console.log('สร้างลูกค้าใหม่:', data);
-                setActive('รายชื่อลูกค้า');
-                openModal('สร้างรายชื่อลูกค้าสำเร็จ');
+              onSave={async (data) => {
+                try {
+                  await createCustomerOnServer(data);
+                  setActive('รายชื่อลูกค้า');
+                  openModal('สร้างรายชื่อลูกค้าสำเร็จ');
+                } catch (err) {
+                  openModal(err?.message || 'บันทึกลูกค้าไม่สำเร็จ');
+                }
               }}
             />
           </>

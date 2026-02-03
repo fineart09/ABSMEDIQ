@@ -16,3 +16,8 @@ Thumbs.db
 
 # Local build artifacts
 ABSMEDIQ-iis.zip
+
+# Env (secrets)
+.env
+.env.*
+!.env.example
