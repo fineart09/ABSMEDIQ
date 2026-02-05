@@ -86,7 +86,7 @@ const calcOrderedQtyByCode = (order) => {
   for (const it of items) {
     const code = String(it?.code || '').trim();
     if (!code) continue;
-    byCode.set(code, toNumber(it?.qty));
+    byCode.set(code, (byCode.get(code) || 0) + toNumber(it?.qty));
   }
   return byCode;
 };
@@ -97,7 +97,10 @@ const calcReceivedQtyByCode = (order) => {
   for (const it of items) {
     const code = String(it?.code || '').trim();
     if (!code) continue;
-    byCode.set(code, getEffectiveReceivedQty(order, it));
+    byCode.set(
+      code,
+      (byCode.get(code) || 0) + getEffectiveReceivedQty(order, it)
+    );
   }
   return byCode;
 };
@@ -113,21 +116,35 @@ function ReceivePurchaseOrderModal({ order, onClose, onConfirm }) {
 
   const rows = useMemo(() => {
     const items = Array.isArray(order?.items) ? order.items : [];
-    return items.map((it) => {
+
+    const metaByCode = new Map();
+    for (const it of items) {
       const code = String(it?.code || '').trim();
-      const orderedQty = toNumber(it?.qty);
-      const receivedQty = getEffectiveReceivedQty(order, it);
+      if (!code) continue;
+      if (!metaByCode.has(code)) {
+        metaByCode.set(code, {
+          code,
+          nameTh: String(it?.nameTh || ''),
+          unit: String(it?.unit || ''),
+        });
+      }
+    }
+
+    const list = Array.from(metaByCode.values()).map((m) => {
+      const orderedQty = toNumber(orderedByCode.get(m.code) ?? 0);
+      const receivedQty = toNumber(receivedByCode.get(m.code) ?? 0);
       const remaining = Math.max(0, orderedQty - receivedQty);
       return {
-        code,
-        nameTh: String(it?.nameTh || ''),
-        unit: String(it?.unit || ''),
+        ...m,
         orderedQty,
         receivedQty,
         remaining,
       };
     });
-  }, [order]);
+
+    list.sort((a, b) => a.code.localeCompare(b.code));
+    return list;
+  }, [order, orderedByCode, receivedByCode]);
 
   useEffect(() => {
     if (!order) return;
@@ -199,7 +216,7 @@ function ReceivePurchaseOrderModal({ order, onClose, onConfirm }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal modal--customer-details"
+        className="modal modal--customer-details modal--po-receive"
         role="dialog"
         aria-modal="true"
         aria-label={`รับสินค้า: ${order.poNo || order.id}`}
@@ -368,6 +385,9 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
       const unitCost = toNumber(it?.price);
       const receivedQty = getEffectiveReceivedQty(order, it);
 
+      const shipDateISO = String(it?.shipDate || '').trim();
+      const shipDateText = shipDateISO ? formatDateDMY(shipDateISO) : '';
+
       const receivedLots = Array.isArray(it?.receivedLots)
         ? it.receivedLots
         : [];
@@ -407,6 +427,7 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
         receivedQty,
         receivedLotText,
         receivedExpiryText,
+        shipDateText,
         unitCost,
         lineTotal: orderedQty * unitCost,
       };
@@ -474,6 +495,7 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
                   <th style={{ padding: 8, width: 170 }}>
                     วันหมดอายุ (ที่รับเข้า)
                   </th>
+                  <th style={{ padding: 8, width: 140 }}>วันที่จัดส่งสินค้า</th>
                   <th style={{ padding: 8, width: 110 }}>ต้นทุน</th>
                   <th style={{ padding: 8, width: 120 }}>รวม</th>
                 </tr>
@@ -495,13 +517,14 @@ function PurchaseOrderDetailsModal({ order, onClose }) {
                       <td style={{ padding: 8, whiteSpace: 'pre-line' }}>
                         {r.receivedExpiryText || '-'}
                       </td>
+                      <td style={{ padding: 8 }}>{r.shipDateText || '-'}</td>
                       <td style={{ padding: 8 }}>{toCurrency(r.unitCost)}</td>
                       <td style={{ padding: 8 }}>{toCurrency(r.lineTotal)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9} style={{ padding: 12, color: '#6b7280' }}>
+                    <td colSpan={10} style={{ padding: 12, color: '#6b7280' }}>
                       ไม่พบรายการสินค้าในใบสั่งซื้อ
                     </td>
                   </tr>
@@ -706,13 +729,14 @@ export default function PurchaseOrders({
             {paged.map((o) => {
               const canEdit = isPurchaseOrderEditable(o);
               const canReceive = !isPurchaseOrderFullyReceived(o);
+              const orderedAtText = formatDateDMY(o.orderedAt);
               return (
                 <tr
                   key={o.id || o.poNo}
                   style={{ borderTop: '1px solid #eaeaea' }}
                 >
                   <td style={{ padding: 8 }}>{o.poNo || '-'}</td>
-                  <td style={{ padding: 8 }}>{formatDateDMY(o.orderedAt)}</td>
+                  <td style={{ padding: 8 }}>{orderedAtText || '-'}</td>
                   <td style={{ padding: 8 }}>{o.supplier || '-'}</td>
                   <td style={{ padding: 8 }}>{countItems(o)}</td>
                   <td style={{ padding: 8 }}>{toCurrency(sumTotal(o))}</td>

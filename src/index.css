@@ -440,6 +440,26 @@ body[data-page-key='products']::before {
 .modal--po-details {
   width: min(820px, 94%);
   max-height: min(90vh, 900px);
+  font-size: 13px;
+}
+
+.modal--po-details .customers-table thead th,
+.modal--po-details .customers-table tbody td {
+  font-size: 13px;
+}
+
+/* Purchase Order receiving popup (ตรวจนับก่อนรับสินค้า) */
+.modal--po-receive {
+  font-size: 13px;
+}
+
+.modal--po-receive .customers-table thead th,
+.modal--po-receive .customers-table tbody td,
+.modal--po-receive .input,
+.modal--po-receive .select,
+.modal--po-receive .textarea,
+.modal--po-receive .button {
+  font-size: 13px;
 }
 
 /* Make a badge clickable (used in Purchase Orders status column) */
@@ -776,6 +796,45 @@ p {
 }
 .customers-table tbody tr:hover {
   background: rgba(21, 137, 144, 0.06);
+}
+
+/* Purchase Order (Create/Edit) - compact item table */
+.po-items-table {
+  font-size: 12px;
+  --po-item-col-width: 220px;
+}
+
+.po-items-table thead th {
+  font-size: 12px;
+}
+
+.po-items-table .input,
+.po-items-table .select,
+.po-items-table .textarea,
+.po-items-table .button {
+  font-size: 12px;
+}
+
+.po-items-table .input,
+.po-items-table .select {
+  padding: 6px 8px;
+}
+
+.po-item-product {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: var(--po-item-col-width);
+}
+
+.po-item-product .select {
+  width: var(--po-item-col-width);
+  min-width: var(--po-item-col-width);
+}
+
+.po-item-name-input {
+  width: var(--po-item-col-width);
+  min-width: var(--po-item-col-width);
 }
 
 /* Receive stock page: allow long names to wrap so table fits viewport */

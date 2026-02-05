@@ -627,26 +627,38 @@ export default function App() {
                   if (poId !== idKey) return po;
 
                   const poItems = Array.isArray(po?.items) ? po.items : [];
+                  // Allocate received qty across multiple lines with same code.
+                  const remainingAddByCode = new Map();
+                  for (const [code, meta] of receivedByCode.entries()) {
+                    remainingAddByCode.set(code, toNumber(meta?.qty));
+                  }
+
                   const updatedItems = poItems.map((it) => {
                     const code = String(it?.code || '').trim();
+                    const addRemaining = toNumber(remainingAddByCode.get(code));
+                    if (!code || addRemaining <= 0) return it;
+
                     const orderedQty = toNumber(it?.qty);
                     const currentReceived = toNumber(it?.receivedQty);
-                    const meta = receivedByCode.get(code);
-                    const add = meta?.qty ?? 0;
-                    if (!code || add <= 0) return it;
-
-                    const nextReceived = Math.min(
-                      orderedQty,
-                      currentReceived + add
+                    const lineRemaining = Math.max(
+                      0,
+                      orderedQty - currentReceived
                     );
+                    if (lineRemaining <= 0) return it;
 
+                    const add = Math.min(lineRemaining, addRemaining);
+                    if (add <= 0) return it;
+
+                    remainingAddByCode.set(code, addRemaining - add);
+
+                    const meta = receivedByCode.get(code);
                     const prevLots = Array.isArray(it?.receivedLots)
                       ? it.receivedLots
                       : [];
 
                     return {
                       ...it,
-                      receivedQty: nextReceived,
+                      receivedQty: Math.min(orderedQty, currentReceived + add),
                       receivedAt,
                       receivedLots: [
                         ...prevLots,

@@ -33,6 +33,14 @@ const formatDateTH = (iso) => {
   return `${d}/${m}/${y}`;
 };
 
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 const createPurchaseOrderHtml = ({
   poNo,
   orderedAt,
@@ -50,10 +58,12 @@ const createPurchaseOrderHtml = ({
     const qty = toNumber(it?.qty);
     const price = toNumber(it?.price);
     const lineTotal = qty * price;
+    const code = String(it?.code || '').trim();
     const name = String(it?.nameTh || it?.nameEn || it?.code || '').trim();
     return `
       <tr>
         <td>${idx + 1}</td>
+        <td>${code || '-'}</td>
         <td>${name || '-'}</td>
         <td class="amount">${qty}</td>
         <td class="amount">${formatCurrency(price)}</td>
@@ -65,7 +75,7 @@ const createPurchaseOrderHtml = ({
     ? rows.join('')
     : `
       <tr>
-        <td colspan="5" class="empty-row">ไม่มีรายการสินค้า</td>
+        <td colspan="6" class="empty-row">ไม่มีรายการสินค้า</td>
       </tr>`;
 
   return `<!DOCTYPE html>
@@ -327,17 +337,14 @@ const createPurchaseOrderHtml = ({
       <span class="meta-label">วันที่</span>
       <span>${safeDate}</span>
     </div>
-    <div class="meta-row">
-      <span class="meta-label">กำหนดส่ง</span>
-      <span>-</span>
-    </div>
   </div>
 
   <table>
     <thead>
       <tr>
         <th>ลำดับ</th>
-        <th>รายการสินค้า/บริการ</th>
+        <th>รหัสสินค้า</th>
+        <th>ชื่อสินค้า</th>
         <th>จำนวน</th>
         <th>ราคา/หน่วย</th>
         <th>จำนวนเงิน</th>
@@ -368,6 +375,227 @@ ${bodyRows}
   </div>
 </div>
 
+</body>
+</html>`;
+};
+
+const createPurchaseOrderAttachmentHtml = ({
+  poNo,
+  orderedAt,
+  supplier,
+  items,
+  notes,
+  productList,
+}) => {
+  const safeSupplier = escapeHtml(supplier || '-');
+  const safePoNo = escapeHtml(poNo || '-');
+  const safeDate = escapeHtml(formatDateTH(orderedAt) || '-');
+  const safeNotes = escapeHtml(notes || '');
+
+  const products = Array.isArray(productList) ? productList : [];
+
+  const rows = (Array.isArray(items) ? items : []).map((it, idx) => {
+    const code = String(it?.code || '').trim();
+    const p = products.find((x) => String(x?.code || '').trim() === code);
+    const description = String(p?.description || '').trim();
+
+    return `
+      <tr>
+        <td class="center">${idx + 1}</td>
+        <td>${escapeHtml(code || '-')}</td>
+        <td class="desc">${escapeHtml(description || '-')}</td>
+      </tr>`;
+  });
+
+  const bodyRows = rows.length
+    ? rows.join('')
+    : `
+      <tr>
+        <td colspan="3" class="empty-row">ไม่มีรายการสินค้า</td>
+      </tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>เอกสารแนบใบสั่งซื้อ</title>
+  <style>
+    body {
+      font-family: 'Tahoma', sans-serif;
+      padding: 24px;
+      background: #f5f7fb;
+      color: #0f172a;
+    }
+    .container {
+      max-width: 860px;
+      margin: auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+    }
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px dashed #e2e8f0;
+      padding-bottom: 16px;
+    }
+    .title {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: 0.3px;
+      color: #0f766e;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+    .badge {
+      display: inline-block;
+      background: #ecfeff;
+      color: #0e7490;
+      border: 1px solid #a5f3fc;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+    }
+    .meta .label {
+      color: #64748b;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    thead th {
+      background: #0f766e;
+      color: #ffffff;
+      font-weight: 700;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 13px;
+    }
+    tbody td {
+      border-top: 1px solid #e2e8f0;
+      padding: 10px 12px;
+      vertical-align: top;
+      font-size: 13px;
+    }
+    tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    .amount {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .center {
+      text-align: center;
+      white-space: nowrap;
+    }
+    .desc {
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .empty-row {
+      text-align: center;
+      color: #64748b;
+      padding: 16px;
+    }
+    .footer-note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 12px;
+      color: #9a3412;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
+    @media print {
+      html,
+      body {
+        width: 210mm;
+        min-height: 297mm;
+        background: #ffffff;
+        padding: 0;
+        color: #0f172a;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .container {
+        box-shadow: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 0;
+        padding: 12mm;
+        margin: 0;
+        width: auto;
+        max-width: none;
+      }
+      .footer-note {
+        color: #000000;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="title">เอกสารแนบใบสั่งซื้อสินค้า (ATTACHMENT)</div>
+        <div class="subtitle">รายละเอียดสินค้า/หมายเหตุรายรายการ เพื่อให้ผู้จำหน่ายทราบข้อมูลสำคัญของสินค้า</div>
+      </div>
+      <div class="badge">PO: ${safePoNo}</div>
+    </div>
+
+    <div class="meta">
+      <div class="label">ผู้จำหน่าย</div><div>${safeSupplier}</div>
+      <div class="label">วันที่สั่งซื้อ</div><div>${safeDate}</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 44px;" class="center">#</th>
+          <th style="width: 110px;">รหัส</th>
+          <th>รายละเอียดสินค้า / หมายเหตุ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+      </tbody>
+    </table>
+
+    <div class="footer-note">
+      <strong>หมายเหตุใบสั่งซื้อ:</strong> ${safeNotes || '-'}
+    </div>
+  </div>
 </body>
 </html>`;
 };
@@ -409,6 +637,7 @@ export default function CreatePurchaseOrder({
   const [supplier, setSupplier] = useState(initial?.supplier || '');
   const [status, setStatus] = useState(initial?.status || 'ร่าง');
   const [notes, setNotes] = useState(initial?.notes || '');
+  const [printAttachment, setPrintAttachment] = useState(false);
   const [items, setItems] = useState(
     Array.isArray(initial?.items) && initial.items.length
       ? initial.items.map((it) => ({
@@ -417,6 +646,7 @@ export default function CreatePurchaseOrder({
           unit: String(it?.unit || ''),
           qty: toNumber(it?.qty || 1),
           price: toNumber(it?.price || 0),
+          shipDate: String(it?.shipDate || ''),
         }))
       : []
   );
@@ -428,6 +658,7 @@ export default function CreatePurchaseOrder({
       setSupplier('');
       setStatus('ร่าง');
       setNotes('');
+      setPrintAttachment(false);
       setItems([]);
       return;
     }
@@ -437,6 +668,7 @@ export default function CreatePurchaseOrder({
     setSupplier(initial?.supplier || '');
     setStatus(initial?.status || 'ร่าง');
     setNotes(initial?.notes || '');
+    setPrintAttachment(false);
     setItems(
       Array.isArray(initial?.items) && initial.items.length
         ? initial.items.map((it) => ({
@@ -445,6 +677,7 @@ export default function CreatePurchaseOrder({
             unit: String(it?.unit || ''),
             qty: toNumber(it?.qty || 1),
             price: toNumber(it?.price || 0),
+            shipDate: String(it?.shipDate || ''),
           }))
         : []
     );
@@ -456,10 +689,15 @@ export default function CreatePurchaseOrder({
       ...prev,
       {
         code: first?.code ? String(first.code) : '',
-        nameTh: first?.nameTh ? String(first.nameTh) : '',
+        nameTh: first?.nameTh
+          ? String(first.nameTh)
+          : first?.nameEn
+            ? String(first.nameEn)
+            : '',
         unit: first?.unit ? String(first.unit) : '',
         qty: 1,
         price: toNumber(first?.cost ?? first?.price ?? 0),
+        shipDate: '',
       },
     ]);
   };
@@ -489,8 +727,25 @@ export default function CreatePurchaseOrder({
       return code && qty > 0;
     });
 
+    // Prevent duplicate product codes (receiving & stock updates are code-based)
+    const codeCounts = new Map();
+    for (const it of validItems) {
+      const code = String(it?.code || '').trim();
+      if (!code) continue;
+      codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
+    }
+    const dupCodes = Array.from(codeCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([code]) => code);
+
     if (validItems.length === 0)
       errors.items = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
+
+    if (!errors.items && dupCodes.length) {
+      errors.items = `มีรหัสสินค้าซ้ำ: ${dupCodes.slice(0, 3).join(', ')}${
+        dupCodes.length > 3 ? ` (+${dupCodes.length - 3})` : ''
+      }`;
+    }
 
     return errors;
   }, [poNo, orderedAt, supplier, items]);
@@ -514,6 +769,7 @@ export default function CreatePurchaseOrder({
           unit: String(it?.unit || '').trim(),
           qty: toNumber(it?.qty),
           price: toNumber(it?.price),
+          shipDate: String(it?.shipDate || '').trim(),
         }))
         .filter((it) => it.code && it.qty > 0),
     };
@@ -554,17 +810,64 @@ export default function CreatePurchaseOrder({
                 className="button"
                 onClick={() => {
                   setStatus('สั่งซื้อแล้ว');
-                  const html = createPurchaseOrderHtml({
+
+                  const w = window.open('', '_blank');
+                  if (!w) return;
+
+                  const baseHtml = createPurchaseOrderHtml({
                     poNo: String(poNo || '').trim(),
                     orderedAt: String(orderedAt || '').trim(),
                     supplier: String(supplier || '').trim(),
                     items,
                     total,
                   });
-                  const w = window.open('', '_blank');
-                  if (!w) return;
+
+                  const extractFirstStyleText = (html) => {
+                    const m = String(html || '').match(
+                      /<style[^>]*>([\s\S]*?)<\/style>/i
+                    );
+                    return m?.[1] ? String(m[1]) : '';
+                  };
+
+                  const extractBodyInner = (html) => {
+                    const m = String(html || '').match(
+                      /<body[^>]*>([\s\S]*?)<\/body>/i
+                    );
+                    return m?.[1] ? String(m[1]).trim() : '';
+                  };
+
+                  let htmlToPrint = baseHtml;
+
+                  if (printAttachment) {
+                    const attachmentHtml = createPurchaseOrderAttachmentHtml({
+                      poNo: String(poNo || '').trim(),
+                      orderedAt: String(orderedAt || '').trim(),
+                      supplier: String(supplier || '').trim(),
+                      items,
+                      notes,
+                      productList,
+                    });
+
+                    const attachmentCss = extractFirstStyleText(attachmentHtml);
+                    const attachmentBody = extractBodyInner(attachmentHtml);
+
+                    if (attachmentCss) {
+                      htmlToPrint = htmlToPrint.replace(
+                        '</style>',
+                        `\n/* Attachment styles */\n${attachmentCss}\n</style>`
+                      );
+                    }
+
+                    if (attachmentBody) {
+                      htmlToPrint = htmlToPrint.replace(
+                        /<\/body>\s*<\/html>\s*$/i,
+                        `\n<div style="page-break-before: always;"></div>\n${attachmentBody}\n</body>\n</html>`
+                      );
+                    }
+                  }
+
                   w.document.open();
-                  w.document.write(html);
+                  w.document.write(htmlToPrint);
                   w.document.close();
                 }}
               >
@@ -665,9 +968,31 @@ export default function CreatePurchaseOrder({
             }}
           >
             <h3 style={{ margin: 0 }}>รายการสินค้า</h3>
-            <button type="button" className="button" onClick={addItem}>
-              เพิ่มสินค้า
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {isEdit ? (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    color: '#111827',
+                    userSelect: 'none',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={printAttachment}
+                    onChange={(e) => setPrintAttachment(e.target.checked)}
+                  />
+                  พิมพ์เอกสารแนบใบสั่งซื้อ
+                </label>
+              ) : null}
+
+              <button type="button" className="button" onClick={addItem}>
+                เพิ่มสินค้า
+              </button>
+            </div>
           </div>
 
           {validation.items ? (
@@ -679,16 +1004,20 @@ export default function CreatePurchaseOrder({
             style={{ overflowX: 'auto', marginTop: 10 }}
           >
             <table
-              className="customers-table"
+              className="customers-table po-items-table"
               style={{ width: '100%', borderCollapse: 'collapse' }}
             >
               <thead>
                 <tr>
                   <th style={{ padding: 8 }}>สินค้า</th>
+                  <th style={{ padding: 8 }}>ชื่อสินค้า</th>
                   <th style={{ padding: 8 }}>หน่วย</th>
                   <th style={{ padding: 8 }}>จำนวน</th>
                   <th style={{ padding: 8 }}>ราคา/หน่วย</th>
                   <th style={{ padding: 8 }}>รวม</th>
+                  {isEdit ? (
+                    <th style={{ padding: 8 }}>วันจัดส่งสินค้า</th>
+                  ) : null}
                   <th style={{ padding: 8 }}>จัดการ</th>
                 </tr>
               </thead>
@@ -702,43 +1031,48 @@ export default function CreatePurchaseOrder({
                       style={{ borderTop: '1px solid #eaeaea' }}
                     >
                       <td style={{ padding: 8 }}>
-                        <select
-                          className="select"
-                          value={it.code}
-                          onChange={(e) => {
-                            const code = e.target.value;
-                            const p = productList.find(
-                              (x) => String(x?.code || '') === String(code)
-                            );
-                            updateItem(idx, {
-                              code,
-                              nameTh: p?.nameTh ? String(p.nameTh) : '',
-                              unit: p?.unit ? String(p.unit) : '',
-                              price: toNumber(p?.cost ?? p?.price ?? 0),
-                            });
-                          }}
-                        >
-                          {productList.length ? (
-                            productList.map((p) => (
-                              <option key={p.code} value={p.code}>
-                                {p.code} — {p.nameTh || p.nameEn || ''}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="">(ไม่มีสินค้า)</option>
-                          )}
-                        </select>
-                        {it.nameTh ? (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: '#6b7280',
-                              marginTop: 2,
+                        <div className="po-item-product">
+                          <select
+                            className="select"
+                            value={it.code}
+                            onChange={(e) => {
+                              const code = e.target.value;
+                              const p = productList.find(
+                                (x) => String(x?.code || '') === String(code)
+                              );
+                              updateItem(idx, {
+                                code,
+                                nameTh: p?.nameTh
+                                  ? String(p.nameTh)
+                                  : p?.nameEn
+                                    ? String(p.nameEn)
+                                    : '',
+                                unit: p?.unit ? String(p.unit) : '',
+                                price: toNumber(p?.cost ?? p?.price ?? 0),
+                              });
                             }}
                           >
-                            {it.nameTh}
-                          </div>
-                        ) : null}
+                            {productList.length ? (
+                              productList.map((p) => (
+                                <option key={p.code} value={p.code}>
+                                  {p.code} — {p.nameTh || p.nameEn || ''}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">(ไม่มีสินค้า)</option>
+                            )}
+                          </select>
+                        </div>
+                      </td>
+                      <td style={{ padding: 8 }}>
+                        <input
+                          className="input po-item-name-input"
+                          value={it.nameTh}
+                          onChange={(e) =>
+                            updateItem(idx, { nameTh: e.target.value })
+                          }
+                          placeholder="ชื่อสินค้า (แก้ไขได้)"
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
                         <input
@@ -785,6 +1119,21 @@ export default function CreatePurchaseOrder({
                           maximumFractionDigits: 2,
                         })}
                       </td>
+
+                      {isEdit ? (
+                        <td style={{ padding: 8 }}>
+                          <input
+                            className="input"
+                            type="date"
+                            value={String(it.shipDate || '')}
+                            onChange={(e) =>
+                              updateItem(idx, { shipDate: e.target.value })
+                            }
+                            style={{ width: 150 }}
+                          />
+                        </td>
+                      ) : null}
+
                       <td style={{ padding: 8 }}>
                         <button
                           type="button"
@@ -800,7 +1149,10 @@ export default function CreatePurchaseOrder({
 
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: 16, color: '#6b7280' }}>
+                    <td
+                      colSpan={isEdit ? 8 : 7}
+                      style={{ padding: 16, color: '#6b7280' }}
+                    >
                       ยังไม่มีรายการสินค้า — กด “เพิ่มสินค้า” เพื่อเริ่มต้น
                     </td>
                   </tr>
