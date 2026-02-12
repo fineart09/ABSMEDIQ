@@ -9,7 +9,6 @@ import EditConsumable from './pages/EditConsumable.jsx';
 import EditIngredient from './pages/EditIngredient.jsx';
 import CreatePurchaseOrder from './pages/CreatePurchaseOrder.jsx';
 import Products from './pages/Products.jsx';
-// import PurchaseHome from './pages/PurchaseHome.jsx';
 import PurchaseOrders from './pages/PurchaseOrders.jsx';
 import Suppliers from './pages/Suppliers.jsx';
 import CreateSupplier from './pages/CreateSupplier.jsx';
@@ -21,6 +20,10 @@ import Ingredients from './pages/Ingredients.jsx';
 import ConsumableMovements from './pages/ConsumableMovements.jsx';
 import IngredientMovements from './pages/IngredientMovements.jsx';
 import ReceiveIngredientsStock from './pages/ReceiveIngredientsStock.jsx';
+import ServiceFees from './pages/ServiceFees.jsx';
+import RecordServiceFees from './pages/RecordServiceFees.jsx';
+import TrainersOperators from './pages/TrainersOperators.jsx';
+import AppointmentCalendar from './components/AppointmentCalendar.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
@@ -169,6 +172,7 @@ export default function App() {
   const [suppliers, setSuppliers] = useState(() =>
     Array.isArray(SUPPLIERS_FULL) ? SUPPLIERS_FULL : []
   );
+  const [appointments, setAppointments] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState(() =>
     Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
   );
@@ -325,11 +329,26 @@ export default function App() {
     openModal('ออกจากระบบ');
   };
 
+  const serviceSubPages = [
+    'รายการบริการ',
+    'สร้างคอร์ส',
+    'แก้ไขคอร์ส',
+    'ผู้ให้บริการ',
+    'ค่าจ้างผู้ให้บริการ',
+    'รายการค่าบริการ',
+  ];
+
+  const scheduleSubPages = [
+    'ตารางนัดหมาย',
+    'สร้างนัดหมาย',
+    'แก้ไขข้อมูลนัดหมาย',
+  ];
+
   const navItems = [
     {
       id: 'schedule',
       label: 'ตารางนัดหมาย',
-      items: ['ตารางนัดหมาย', 'สร้างนัดหมาย', 'แก้ไขข้อมูลนัดหมาย'],
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'record',
@@ -340,6 +359,11 @@ export default function App() {
         'บันทึกรายการใช้บริการ',
         'แก้ไขรายการใช้บริการ',
       ],
+    },
+    {
+      id: 'services',
+      label: 'บันทึกรายการค่าบริการ',
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'payment',
@@ -364,17 +388,6 @@ export default function App() {
       // Removed dropdown items to render as a simple button
     },
     {
-      id: 'services',
-      label: 'ค่าบริการ',
-      items: [
-        'รายการบริการ',
-        'สร้างคอร์ส',
-        'แก้ไขคอร์ส',
-        'ผู้ให้บริการ',
-        'ค่าจ้างผู้ให้บริการ',
-      ],
-    },
-    {
       id: 'print',
       label: 'พิมพ์เอกสาร',
       items: ['พิมพ์ฉลากสินค้า', 'พิมพ์เอกสารย้อนหลัง'],
@@ -394,6 +407,10 @@ export default function App() {
   const isNavItemActive = (navItem) => {
     if (active === navItem.label) return true;
     if (navItem.items && navItem.items.includes(active)) return true;
+    if (navItem.id === 'services' && serviceSubPages.includes(active))
+      return true;
+    if (navItem.id === 'schedule' && scheduleSubPages.includes(active))
+      return true;
     return false;
   };
 
@@ -402,16 +419,22 @@ export default function App() {
     switch (activePage) {
       case 'ตารางนัดหมาย':
         return (
-          <>
-            <h1>ตารางนัดหมาย</h1>
-            <p>รอออกแบบ calendar อีกที</p>
-          </>
+          <AppointmentCalendar
+            appointments={appointments}
+            onCreateAppointment={() => setActive('สร้างนัดหมาย')}
+          />
         );
       case 'สร้างนัดหมาย':
         return (
           <CreateAppointment
             onSubmit={(data) => {
-              console.log('สร้างนัดหมาย:', data);
+              const payload = data && typeof data === 'object' ? data : {};
+              const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+              setAppointments((prev) => [
+                ...(Array.isArray(prev) ? prev : []).map((a) => a),
+                { id, ...payload },
+              ]);
+              console.log('สร้างนัดหมาย:', payload);
               openModal('สร้างนัดหมายสำเร็จ');
               setActive('ตารางนัดหมาย');
             }}
@@ -1694,6 +1717,38 @@ export default function App() {
             <h1>การชำระเงิน</h1>
             <p>จัดการการชำระเงิน ดูรายการ และออกใบเสร็จ</p>
           </>
+        );
+
+      case 'ค่าบริการ':
+        return (
+          <RecordServiceFees
+            onOpenServiceFees={() => setActive('รายการค่าบริการ')}
+          />
+        );
+
+      case 'บันทึกรายการค่าบริการ':
+        return (
+          <RecordServiceFees
+            onOpenServiceFees={() => setActive('รายการค่าบริการ')}
+          />
+        );
+
+      case 'รายการค่าบริการ':
+        return (
+          <ServiceFees
+            title="รายการค่าบริการ"
+            onCreateNew={() => openModal('สร้างรายการค่าบริการ')}
+            onOpenTrainersOperators={() => setActive('ผู้ฝึกสอน/ผู้ดำเนินการ')}
+            onBackToRecord={() => setActive('บันทึกรายการค่าบริการ')}
+          />
+        );
+
+      case 'ผู้ฝึกสอน/ผู้ดำเนินการ':
+        return (
+          <TrainersOperators
+            onBack={() => setActive('รายการค่าบริการ')}
+            onCreateNew={() => openModal('สร้างผู้ฝึกสอน/ผู้ดำเนินการ')}
+          />
         );
       case 'ตั้งค่าทั่วไป':
         return (

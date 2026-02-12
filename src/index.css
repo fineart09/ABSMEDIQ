@@ -260,6 +260,295 @@ body[data-page-key='products']::before {
   outline: 2px solid #b91c1c;
   outline-offset: 2px;
 }
+
+/* Appointment calendar (Outlook-like grid) */
+.appt-cal {
+  padding-bottom: 18px;
+}
+
+.appt-cal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.appt-cal__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.appt-cal__legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.appt-cal__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.appt-cal__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appt-cal__nav .button {
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.appt-cal__view {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.appt-cal__view select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.appt-cal__view select:focus-visible {
+  outline: 2px solid #158990;
+  outline-offset: 2px;
+}
+
+.appt-cal__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #158990;
+  background: rgba(21, 137, 144, 0.08);
+  border: 1px solid rgba(21, 137, 144, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  appearance: none;
+}
+
+.appt-cal__legend-item.appt-cal__cta {
+  background: #158990;
+  border-color: #158990;
+  color: #ffffff;
+}
+
+.appt-cal__legend-item.appt-cal__cta:hover {
+  opacity: 0.92;
+}
+
+.appt-cal__legend-item.appt-cal__cta:active {
+  opacity: 0.86;
+}
+
+.appt-cal__legend-item:focus-visible {
+  outline: 2px solid #158990;
+  outline-offset: 2px;
+}
+
+.appt-cal__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #158990;
+  display: inline-block;
+}
+
+.appt-cal__grid {
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: auto;
+  max-height: calc(100vh - var(--header-offset) - 170px);
+
+  display: grid;
+  grid-template-columns: 84px repeat(7, minmax(140px, 1fr));
+}
+
+.appt-cal__grid--month {
+  grid-template-columns: repeat(7, minmax(140px, 1fr));
+  grid-auto-rows: minmax(110px, auto);
+}
+
+.appt-cal__month-dayhead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 10px;
+  font-weight: 900;
+  color: #158990;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.appt-cal__month-cell {
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px;
+  min-height: 110px;
+}
+
+.appt-cal__month-cell--out {
+  background: #f9fafb;
+  opacity: 0.75;
+}
+
+.appt-cal__month-date {
+  font-weight: 900;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.appt-cal__month-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.appt-cal__month-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(21, 137, 144, 0.08);
+  border: 1px solid rgba(21, 137, 144, 0.22);
+  border-radius: 10px;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+
+.appt-cal__month-event-time {
+  font-weight: 900;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.appt-cal__month-event-title {
+  font-weight: 800;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appt-cal__month-more {
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.appt-cal__corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  background: #f9fafb;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.appt-cal__dayhead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 10px;
+  font-weight: 900;
+  color: #158990;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.appt-cal__dayhead--today {
+  background: rgba(21, 137, 144, 0.08);
+}
+
+.appt-cal__row {
+  display: contents;
+}
+
+.appt-cal__time {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.appt-cal__cell {
+  min-height: 46px;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 6px;
+}
+
+.appt-cal__cell--today {
+  background: rgba(21, 137, 144, 0.05);
+}
+
+.appt-cal__today {
+  background: rgba(21, 137, 144, 0.05);
+  box-shadow: inset 0 0 0 2px rgba(21, 137, 144, 0.22);
+}
+
+.appt-cal__selected {
+  box-shadow: inset 0 0 0 2px #158990;
+  background: rgba(21, 137, 144, 0.08);
+}
+
+.appt-cal__events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.appt-cal__event {
+  background: rgba(21, 137, 144, 0.08);
+  border: 1px solid rgba(21, 137, 144, 0.22);
+  border-radius: 10px;
+  padding: 7px 8px;
+}
+
+.appt-cal__event-title {
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.appt-cal__event-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.appt-cal__empty {
+  margin-top: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+}
 .nav {
   display: flex;
   gap: 0.35rem;
