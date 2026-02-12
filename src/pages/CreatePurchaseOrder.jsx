@@ -58,14 +58,14 @@ const createPurchaseOrderHtml = ({
     const qty = toNumber(it?.qty);
     const price = toNumber(it?.price);
     const lineTotal = qty * price;
-    const code = String(it?.code || '').trim();
     const name = String(it?.nameTh || it?.nameEn || it?.code || '').trim();
+    const unit = String(it?.unit || '').trim();
     return `
       <tr>
         <td>${idx + 1}</td>
-        <td>${code || '-'}</td>
         <td>${name || '-'}</td>
         <td class="amount">${qty}</td>
+        <td>${unit || '-'}</td>
         <td class="amount">${formatCurrency(price)}</td>
         <td class="amount">${formatCurrency(lineTotal)}</td>
       </tr>`;
@@ -343,9 +343,9 @@ const createPurchaseOrderHtml = ({
     <thead>
       <tr>
         <th>ลำดับ</th>
-        <th>รหัสสินค้า</th>
         <th>ชื่อสินค้า</th>
         <th>จำนวน</th>
+        <th>หน่วย</th>
         <th>ราคา/หน่วย</th>
         <th>จำนวนเงิน</th>
       </tr>
@@ -396,13 +396,20 @@ const createPurchaseOrderAttachmentHtml = ({
 
   const rows = (Array.isArray(items) ? items : []).map((it, idx) => {
     const code = String(it?.code || '').trim();
+    const qty = toNumber(it?.qty);
     const p = products.find((x) => String(x?.code || '').trim() === code);
     const description = String(p?.description || '').trim();
+    const unit = String(it?.unit || p?.unit || '').trim();
+    const name = String(
+      it?.nameTh || it?.nameEn || p?.nameTh || p?.nameEn || p?.name || ''
+    ).trim();
 
     return `
       <tr>
         <td class="center">${idx + 1}</td>
-        <td>${escapeHtml(code || '-')}</td>
+        <td>${escapeHtml(name || '-')}</td>
+        <td class="amount qty-col">${escapeHtml(qty)}</td>
+        <td>${escapeHtml(unit || '-')}</td>
         <td class="desc">${escapeHtml(description || '-')}</td>
       </tr>`;
   });
@@ -411,7 +418,7 @@ const createPurchaseOrderAttachmentHtml = ({
     ? rows.join('')
     : `
       <tr>
-        <td colspan="3" class="empty-row">ไม่มีรายการสินค้า</td>
+        <td colspan="5" class="empty-row">ไม่มีรายการสินค้า</td>
       </tr>`;
 
   return `<!DOCTYPE html>
@@ -509,6 +516,10 @@ const createPurchaseOrderAttachmentHtml = ({
       text-align: right;
       white-space: nowrap;
     }
+    .qty-col {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
     .center {
       text-align: center;
       white-space: nowrap;
@@ -583,7 +594,9 @@ const createPurchaseOrderAttachmentHtml = ({
       <thead>
         <tr>
           <th style="width: 44px;" class="center">#</th>
-          <th style="width: 110px;">รหัส</th>
+          <th>ชื่อสินค้า</th>
+          <th style="width: 64px;" class="amount qty-col">จำนวน</th>
+          <th style="width: 70px;">หน่วย</th>
           <th>รายละเอียดสินค้า / หมายเหตุ</th>
         </tr>
       </thead>
