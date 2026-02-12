@@ -85,14 +85,164 @@ function buildTimeSlots({ startHour = 8, endHour = 20, stepMinutes = 30 }) {
   return slots;
 }
 
+function buildTimeSlotsFullDay({ stepMinutes = 30 }) {
+  const slots = [];
+  const step = Number(stepMinutes);
+  if (!Number.isFinite(step) || step <= 0) return slots;
+  // 00:00 up to 23:30 (end-exclusive 24:00)
+  for (let total = 0; total < 24 * 60; total += step) {
+    const hour = Math.floor(total / 60);
+    const minute = total % 60;
+    slots.push(`${pad2(hour)}:${pad2(minute)}`);
+  }
+  return slots;
+}
+
 function safeTrim(value) {
   return String(value ?? '').trim();
 }
 
+function getStartTime(appt) {
+  return normalizeTimeHHMM(appt?.timeStart || appt?.time);
+}
+
+function getEndTime(appt) {
+  return normalizeTimeHHMM(appt?.timeEnd);
+}
+
+function getTitle(appt) {
+  return (
+    safeTrim(appt?.patient) ||
+    safeTrim(appt?.customerName) ||
+    safeTrim(appt?.customer?.name) ||
+    '-'
+  );
+}
+
+function getService(appt) {
+  return safeTrim(appt?.service) || safeTrim(appt?.details) || 'นัดหมาย';
+}
+
+function getDetails(appt) {
+  return safeTrim(appt?.details);
+}
+
+function formatTimeRange(appt) {
+  const start = getStartTime(appt);
+  const end = getEndTime(appt);
+  if (start && end && start !== end) return `${start}-${end}`;
+  return start || '--:--';
+}
+
 function compareTime(a, b) {
-  const ta = safeTrim(a?.time);
-  const tb = safeTrim(b?.time);
+  const ta = getStartTime(a);
+  const tb = getStartTime(b);
   return ta.localeCompare(tb);
+}
+
+function snapTimeToStep(timeHHMM, stepMinutes = 30) {
+  const raw = String(timeHHMM || '').trim();
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return '';
+  const step = Number(stepMinutes);
+  if (!Number.isFinite(step) || step <= 0) return normalizeTimeHHMM(raw);
+  const total = hh * 60 + mm;
+  const snapped = Math.floor(total / step) * step;
+  const outH = Math.floor(snapped / 60);
+  const outM = snapped % 60;
+  return `${pad2(outH)}:${pad2(outM)}`;
+}
+
+function timeToMinutes(timeHHMM) {
+  const raw = String(timeHHMM || '').trim();
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  const total = hh * 60 + mm;
+  if (total < 0 || total > 24 * 60) return null;
+  return total;
+}
+
+function clampMinutes(mins) {
+  const v = Number(mins);
+  if (!Number.isFinite(v)) return 0;
+  return Math.min(24 * 60, Math.max(0, v));
+}
+
+function layoutOverlappingEvents(events) {
+  const src = Array.isArray(events) ? events : [];
+  const normalized = [];
+
+  for (const appt of src) {
+    const startMinRaw = timeToMinutes(getStartTime(appt));
+    if (startMinRaw === null) continue;
+    const endMinRaw = timeToMinutes(getEndTime(appt));
+
+    const startMin = clampMinutes(startMinRaw);
+    let endMin =
+      endMinRaw === null
+        ? clampMinutes(startMin + 30)
+        : clampMinutes(endMinRaw);
+
+    if (endMin <= startMin) endMin = clampMinutes(startMin + 30);
+
+    normalized.push({ appt, startMin, endMin });
+  }
+
+  normalized.sort((a, b) => {
+    if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+    if (a.endMin !== b.endMin) return a.endMin - b.endMin;
+    return String(a.appt?.id || '').localeCompare(String(b.appt?.id || ''));
+  });
+
+  // Split into overlap clusters.
+  const clusters = [];
+  let cluster = [];
+  let clusterEnd = -1;
+  for (const item of normalized) {
+    if (!cluster.length) {
+      cluster = [item];
+      clusterEnd = item.endMin;
+      continue;
+    }
+
+    if (item.startMin < clusterEnd) {
+      cluster.push(item);
+      clusterEnd = Math.max(clusterEnd, item.endMin);
+    } else {
+      clusters.push(cluster);
+      cluster = [item];
+      clusterEnd = item.endMin;
+    }
+  }
+  if (cluster.length) clusters.push(cluster);
+
+  const out = [];
+  for (const group of clusters) {
+    const colEnds = []; // endMin per column
+    const placed = [];
+
+    for (const item of group) {
+      let col = colEnds.findIndex((end) => end <= item.startMin);
+      if (col < 0) {
+        col = colEnds.length;
+        colEnds.push(item.endMin);
+      } else {
+        colEnds[col] = item.endMin;
+      }
+      placed.push({ ...item, col });
+    }
+
+    const cols = Math.max(1, colEnds.length);
+    for (const p of placed) out.push({ ...p, cols });
+  }
+
+  return out;
 }
 
 const TH_WEEKDAYS_LONG = [
@@ -184,6 +334,7 @@ function formatThaiDateShort(date) {
 export default function AppointmentCalendar({
   appointments,
   onCreateAppointment,
+  onEditAppointment,
 }) {
   const [view, setView] = useState('week');
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()));
@@ -253,25 +404,54 @@ export default function AppointmentCalendar({
     [appointments]
   );
 
-  const slots = useMemo(
-    () => buildTimeSlots({ startHour: 8, endHour: 20, stepMinutes: 30 }),
-    []
-  );
+  const slots = useMemo(() => {
+    if (view === 'day' || view === 'week') {
+      return buildTimeSlotsFullDay({ stepMinutes: 30 });
+    }
+    return buildTimeSlots({ startHour: 8, endHour: 20, stepMinutes: 30 });
+  }, [view]);
 
   const byDayTime = useMemo(() => {
     if (view === 'month') return new Map();
     const map = new Map();
     for (const appt of list) {
       const dateIso = safeTrim(appt?.date);
-      const timeHHMM = normalizeTimeHHMM(appt?.time);
-      if (!dateIso || !timeHHMM) continue;
+      const timeHHMM = getStartTime(appt);
+      const slotTime = snapTimeToStep(timeHHMM, 30);
+      if (!dateIso || !slotTime) continue;
 
-      const key = `${dateIso}__${timeHHMM}`;
+      const key = `${dateIso}__${slotTime}`;
       const prev = map.get(key) || [];
       map.set(key, [...prev, appt]);
     }
     return map;
   }, [list, view]);
+
+  const byDateAnyView = useMemo(() => {
+    if (view === 'month') return new Map();
+    const map = new Map();
+    for (const appt of list) {
+      const dateIso = safeTrim(appt?.date);
+      if (!dateIso) continue;
+      const prev = map.get(dateIso) || [];
+      map.set(dateIso, [...prev, appt]);
+    }
+    for (const [k, v] of map.entries()) {
+      const next = (Array.isArray(v) ? v : []).slice().sort(compareTime);
+      map.set(k, next);
+    }
+    return map;
+  }, [list, view]);
+
+  const laidOutByDate = useMemo(() => {
+    if (view === 'month') return new Map();
+    const map = new Map();
+    for (const d of days) {
+      const items = byDateAnyView.get(d.iso) || [];
+      map.set(d.iso, layoutOverlappingEvents(items));
+    }
+    return map;
+  }, [byDateAnyView, days, view]);
 
   const byDate = useMemo(() => {
     if (view !== 'month') return new Map();
@@ -349,10 +529,13 @@ export default function AppointmentCalendar({
                 onChange={(e) => {
                   const next = e.target.value;
                   setView(next);
-                  setAnchorDate((prev) => {
-                    if (next === 'month') return startOfMonth(prev);
-                    if (next === 'week') return startOfWeekMonday(prev);
-                    return startOfDay(prev);
+                  // Default to today in every view so users always land on "today"
+                  // after switching views (and newly created appointments are visible).
+                  setAnchorDate(() => {
+                    const base = startOfDay(new Date());
+                    if (next === 'month') return startOfMonth(base);
+                    if (next === 'week') return startOfWeekMonday(base);
+                    return base;
                   });
                   clearSelection();
                 }}
@@ -431,16 +614,40 @@ export default function AppointmentCalendar({
                     {items.slice(0, 6).map((a) => (
                       <div
                         key={String(
-                          a?.id || `${a?.date}-${a?.time}-${a?.patient}`
+                          a?.id ||
+                            `${a?.date}-${getStartTime(a)}-${getTitle(a)}`
                         )}
                         className="appt-cal__month-event"
-                        title={`${safeTrim(a?.time)} ${safeTrim(a?.patient)} ${safeTrim(a?.service)}`.trim()}
+                        title={`${formatTimeRange(a)} ${getTitle(a)} ${getService(a)}`.trim()}
+                        role={
+                          typeof onEditAppointment === 'function'
+                            ? 'button'
+                            : undefined
+                        }
+                        tabIndex={
+                          typeof onEditAppointment === 'function'
+                            ? 0
+                            : undefined
+                        }
+                        onClick={(e) => {
+                          if (typeof onEditAppointment !== 'function') return;
+                          e.stopPropagation();
+                          onEditAppointment(a);
+                        }}
+                        onKeyDown={(e) => {
+                          if (typeof onEditAppointment !== 'function') return;
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onEditAppointment(a);
+                          }
+                        }}
                       >
                         <span className="appt-cal__month-event-time">
-                          {normalizeTimeHHMM(a?.time) || '--:--'}
+                          {getStartTime(a) || '--:--'}
                         </span>
                         <span className="appt-cal__month-event-title">
-                          {safeTrim(a?.patient) || '-'}
+                          {getTitle(a) || '-'}
                         </span>
                       </div>
                     ))}
@@ -457,11 +664,13 @@ export default function AppointmentCalendar({
         </div>
       ) : (
         <div
-          className="appt-cal__grid"
+          className={`appt-cal__grid${view === 'day' ? ' appt-cal__grid--day' : ''}${view === 'week' ? ' appt-cal__grid--week' : ''}`}
           role="grid"
           aria-label="ปฏิทินนัดหมาย"
           style={{
-            gridTemplateColumns: `84px repeat(${days.length}, minmax(140px, 1fr))`,
+            gridTemplateColumns: `${view === 'day' ? 72 : 72}px repeat(${days.length}, ${
+              view === 'day' ? 'minmax(0, 1fr)' : 'minmax(110px, 1fr)'
+            })`,
           }}
         >
           {/* Header row */}
@@ -476,56 +685,98 @@ export default function AppointmentCalendar({
             </div>
           ))}
 
-          {/* Body */}
-          {slots.map((slot) => (
-            <div className="appt-cal__row" key={slot} role="row">
-              <div className="appt-cal__time" role="rowheader">
+          {/* Body: time column + day columns (duration blocks) */}
+          <div className="appt-cal__timecol" role="rowheader" aria-label="เวลา">
+            {slots.map((slot) => (
+              <div key={slot} className="appt-cal__timecol-item">
                 {slot}
               </div>
-              {days.map((d) => {
-                const key = `${d.iso}__${slot}`;
-                const items = byDayTime.get(key) || [];
-                const isSelected = selectedCellKey === key;
-                return (
-                  <div
-                    key={key}
-                    className={`appt-cal__cell${d.iso === todayIso ? ' appt-cal__cell--today' : ''}${isSelected ? ' appt-cal__selected' : ''}`}
-                    role="gridcell"
-                    aria-label={`${d.label} ${slot}`}
-                    aria-selected={isSelected ? 'true' : 'false'}
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedCellKey(key);
-                      setSelectedDateIso(null);
-                    }}
-                  >
-                    {items.length > 0 ? (
-                      <div className="appt-cal__events">
-                        {items.map((a) => (
-                          <div
-                            key={String(
-                              a?.id || `${a?.date}-${a?.time}-${a?.patient}`
-                            )}
-                            className="appt-cal__event"
-                          >
-                            <div className="appt-cal__event-title">
-                              {safeTrim(a?.patient) || '-'}
-                            </div>
-                            <div className="appt-cal__event-meta">
-                              {safeTrim(a?.service) || 'นัดหมาย'}
-                              {safeTrim(a?.provider)
-                                ? ` • ${safeTrim(a?.provider)}`
-                                : ''}
-                            </div>
-                          </div>
-                        ))}
+            ))}
+          </div>
+
+          {days.map((d) => {
+            const items = laidOutByDate.get(d.iso) || [];
+            const isToday = d.iso === todayIso;
+            return (
+              <div
+                key={d.iso}
+                className={`appt-cal__daycol${isToday ? ' appt-cal__daycol--today' : ''}`}
+                role="gridcell"
+                aria-label={d.label}
+                onClick={() => {
+                  setSelectedDateIso(null);
+                  setSelectedCellKey(null);
+                }}
+              >
+                {items.map(({ appt, startMin, endMin, col, cols }) => {
+                  const leftPct = (col / cols) * 100;
+                  const widthPct = 100 / cols;
+                  const duration = Math.max(1, endMin - startMin);
+                  const isDayView = view === 'day';
+                  const isShort = duration < 60;
+                  const isTiny = duration <= 35;
+                  const detailLine = getDetails(appt) || getService(appt);
+                  const title =
+                    `${formatTimeRange(appt)} ${getTitle(appt)} ${getService(appt)}`.trim();
+
+                  return (
+                    <div
+                      key={String(
+                        appt?.id ||
+                          `${appt?.date}-${getStartTime(appt)}-${getTitle(appt)}`
+                      )}
+                      className={`appt-cal__event-block${isDayView ? ' appt-cal__event-block--day' : ''}${isTiny ? ' appt-cal__event-block--tiny' : isShort ? ' appt-cal__event-block--short' : ''}`}
+                      title={title}
+                      role={
+                        typeof onEditAppointment === 'function'
+                          ? 'button'
+                          : undefined
+                      }
+                      tabIndex={
+                        typeof onEditAppointment === 'function' ? 0 : undefined
+                      }
+                      style={{
+                        top: `calc((var(--appt-slot-h) / 30) * ${startMin})`,
+                        height: `calc((var(--appt-slot-h) / 30) * ${duration})`,
+                        left: `calc(${leftPct}% + 2px)`,
+                        width: `calc(${widthPct}% - 4px)`,
+                      }}
+                      onClick={(e) => {
+                        if (typeof onEditAppointment !== 'function') return;
+                        e.stopPropagation();
+                        onEditAppointment(appt);
+                      }}
+                      onKeyDown={(e) => {
+                        if (typeof onEditAppointment !== 'function') return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEditAppointment(appt);
+                        }
+                      }}
+                    >
+                      <div className="appt-cal__event-block-title">
+                        {getTitle(appt) || '-'}
                       </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                      <div className="appt-cal__event-block-detailline">
+                        {detailLine || '-'}
+                      </div>
+                      {!isShort ? (
+                        <div className="appt-cal__event-block-meta">
+                          {formatTimeRange(appt)}
+                        </div>
+                      ) : null}
+                      {isDayView && duration >= 90 && getDetails(appt) ? (
+                        <div className="appt-cal__event-block-details">
+                          {getDetails(appt)}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
 

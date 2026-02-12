@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import sql from 'mssql';
 import dotenv from 'dotenv';
+import APPOINTMENTS_STAGE from './src/mocks/appointmentsStage.js';
 
 dotenv.config();
 
@@ -36,6 +37,74 @@ const getPool = async () => {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, server: 'absmediq-api' });
+});
+
+const safeTrim = (v) => String(v ?? '').trim();
+const normalizeTimeHHMM = (time) => {
+  const raw = safeTrim(time);
+  if (!raw) return '';
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  const hh = String(Number(m[1])).padStart(2, '0');
+  const mm = String(Number(m[2])).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+const normalizeAppointment = (src) => {
+  const payload = src && typeof src === 'object' ? src : {};
+  const date = safeTrim(payload.date);
+  const timeStart = normalizeTimeHHMM(payload.timeStart || payload.time);
+  const timeEnd = normalizeTimeHHMM(payload.timeEnd);
+  const patient =
+    safeTrim(payload.patient) ||
+    safeTrim(payload.customerName) ||
+    safeTrim(payload.customer?.name) ||
+    '-';
+  const service =
+    safeTrim(payload.service) || safeTrim(payload.details) || 'นัดหมาย';
+  const provider = safeTrim(payload.provider);
+
+  return {
+    ...payload,
+    date,
+    timeStart,
+    timeEnd,
+    time: timeStart,
+    patient,
+    service,
+    provider,
+  };
+};
+
+let appointmentsStore = Array.isArray(APPOINTMENTS_STAGE)
+  ? APPOINTMENTS_STAGE.map((a) => normalizeAppointment(a))
+  : [];
+
+app.get('/api/appointments', (req, res) => {
+  res.json({ items: appointmentsStore });
+});
+
+app.post('/api/appointments', (req, res) => {
+  const appt = normalizeAppointment(req.body);
+  if (!appt.date) {
+    return res.status(400).json({ error: 'กรุณาระบุวันที่ (date)' });
+  }
+  if (!appt.timeStart) {
+    return res.status(400).json({ error: 'กรุณาระบุเวลาเริ่ม (timeStart)' });
+  }
+  if (!appt.timeEnd) {
+    return res.status(400).json({ error: 'กรุณาระบุเวลาสิ้นสุด (timeEnd)' });
+  }
+  if (appt.timeStart >= appt.timeEnd) {
+    return res.status(400).json({ error: 'เวลาสิ้นสุดต้องมากกว่าเวลาเริ่ม' });
+  }
+
+  const id =
+    safeTrim(appt.id) ||
+    `appt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const created = { ...appt, id };
+  appointmentsStore = [...appointmentsStore, created];
+  return res.status(201).json(created);
 });
 
 app.post('/api/customers', async (req, res) => {

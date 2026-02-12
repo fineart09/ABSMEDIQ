@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import CreateAppointment from './pages/CreateAppointment.jsx';
 import CreateCustomer from './pages/CreateCustomer.jsx';
 import CreateProduct from './pages/CreateProduct.jsx';
 import Customers from './pages/Customers.jsx';
@@ -24,11 +23,13 @@ import ServiceFees from './pages/ServiceFees.jsx';
 import RecordServiceFees from './pages/RecordServiceFees.jsx';
 import TrainersOperators from './pages/TrainersOperators.jsx';
 import AppointmentCalendar from './components/AppointmentCalendar.jsx';
+import AppointmentCreateModal from './components/AppointmentCreateModal.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
 import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
 import CONSUMABLES_FULL from './mocks/consumablesFull.js';
 import INGREDIENTS_FULL from './mocks/ingredientsFull.js';
+import APPOINTMENTS_STAGE from './mocks/appointmentsStage.js';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -58,6 +59,39 @@ function Modal({ open, title, onClose }) {
 }
 
 export default function App() {
+  const APPOINTMENTS_LS_KEY = 'absmediq.appointments.v1';
+
+  const readAppointmentsFromLocalStorage = () => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = window.localStorage.getItem(APPOINTMENTS_LS_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const items = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.items)
+          ? parsed.items
+          : null;
+      if (!items) return null;
+      return items.filter((x) => x && typeof x === 'object');
+    } catch {
+      return null;
+    }
+  };
+
+  const writeAppointmentsToLocalStorage = (items) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const src = Array.isArray(items) ? items : [];
+      window.localStorage.setItem(
+        APPOINTMENTS_LS_KEY,
+        JSON.stringify({ items: src, savedAt: new Date().toISOString() })
+      );
+    } catch {
+      // Ignore quota / private mode errors
+    }
+  };
+
   const stripProductPhotoUrl = (p) => {
     if (!p || typeof p !== 'object') return p;
     // Remove legacy product photo field from the system.
@@ -144,6 +178,11 @@ export default function App() {
   };
 
   const [modal, setModal] = useState({ open: false, title: '' });
+  const [appointmentModal, setAppointmentModal] = useState({
+    open: false,
+    mode: 'create',
+    initialAppointment: null,
+  });
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
   const [consumableMovementFilterCode, setConsumableMovementFilterCode] =
@@ -172,7 +211,10 @@ export default function App() {
   const [suppliers, setSuppliers] = useState(() =>
     Array.isArray(SUPPLIERS_FULL) ? SUPPLIERS_FULL : []
   );
-  const [appointments, setAppointments] = useState([]);
+  const [appointments, setAppointments] = useState(() => {
+    const local = readAppointmentsFromLocalStorage();
+    return Array.isArray(local) ? local : [];
+  });
   const [purchaseOrders, setPurchaseOrders] = useState(() =>
     Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
   );
@@ -188,6 +230,70 @@ export default function App() {
   const dropdownButtonRefs = useRef({});
   const openModal = (title) => setModal({ open: true, title });
   const closeModal = () => setModal({ open: false, title: '' });
+
+  const openCreateAppointment = () => {
+    setAppointmentModal({
+      open: true,
+      mode: 'create',
+      initialAppointment: null,
+    });
+  };
+
+  const openEditAppointment = (appt) => {
+    const src = appt && typeof appt === 'object' ? appt : null;
+    if (!src) return;
+
+    const existingId = String(src?.id || '').trim();
+    if (existingId) {
+      setAppointmentModal({
+        open: true,
+        mode: 'edit',
+        initialAppointment: src,
+      });
+      return;
+    }
+
+    const newId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const key = [
+      String(src?.date || '').trim(),
+      String(src?.timeStart || src?.time || '').trim(),
+      String(src?.customerHn || '').trim(),
+      String(src?.customerName || src?.patient || '').trim(),
+    ]
+      .filter(Boolean)
+      .join('__');
+
+    setAppointments((prev) => {
+      const items = Array.isArray(prev) ? prev : [];
+      let updated = false;
+      return items.map((a) => {
+        if (updated) return a;
+        if (a === src) {
+          updated = true;
+          return { ...a, id: newId };
+        }
+        const aKey = [
+          String(a?.date || '').trim(),
+          String(a?.timeStart || a?.time || '').trim(),
+          String(a?.customerHn || '').trim(),
+          String(a?.customerName || a?.patient || '').trim(),
+        ]
+          .filter(Boolean)
+          .join('__');
+        if (key && aKey && aKey === key) {
+          updated = true;
+          return { ...a, id: newId };
+        }
+        return a;
+      });
+    });
+
+    setAppointmentModal({
+      open: true,
+      mode: 'edit',
+      initialAppointment: { ...src, id: newId },
+    });
+  };
   const createCustomerOnServer = async (payload) => {
     const res = await fetch('/api/customers', {
       method: 'POST',
@@ -253,6 +359,29 @@ export default function App() {
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
+
+  useEffect(() => {
+    // localStorage-only mode: seed from stage mock only on first run
+    // (i.e. when the localStorage key does not exist).
+    try {
+      const hasKey =
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(APPOINTMENTS_LS_KEY) !== null;
+      if (hasKey) return;
+    } catch {
+      // If localStorage isn't available, do nothing.
+      return;
+    }
+
+    if (Array.isArray(appointments) && appointments.length) return;
+    const seed = Array.isArray(APPOINTMENTS_STAGE) ? APPOINTMENTS_STAGE : [];
+    if (!seed.length) return;
+    setAppointments(seed);
+  }, []);
+
+  useEffect(() => {
+    writeAppointmentsToLocalStorage(appointments);
+  }, [appointments]);
 
   useEffect(() => {
     const customersPages = new Set(['รายชื่อลูกค้า', 'ค้นหารายชื่อลูกค้า']);
@@ -338,11 +467,7 @@ export default function App() {
     'รายการค่าบริการ',
   ];
 
-  const scheduleSubPages = [
-    'ตารางนัดหมาย',
-    'สร้างนัดหมาย',
-    'แก้ไขข้อมูลนัดหมาย',
-  ];
+  const scheduleSubPages = ['ตารางนัดหมาย', 'แก้ไขข้อมูลนัดหมาย'];
 
   const navItems = [
     {
@@ -421,23 +546,8 @@ export default function App() {
         return (
           <AppointmentCalendar
             appointments={appointments}
-            onCreateAppointment={() => setActive('สร้างนัดหมาย')}
-          />
-        );
-      case 'สร้างนัดหมาย':
-        return (
-          <CreateAppointment
-            onSubmit={(data) => {
-              const payload = data && typeof data === 'object' ? data : {};
-              const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-              setAppointments((prev) => [
-                ...(Array.isArray(prev) ? prev : []).map((a) => a),
-                { id, ...payload },
-              ]);
-              console.log('สร้างนัดหมาย:', payload);
-              openModal('สร้างนัดหมายสำเร็จ');
-              setActive('ตารางนัดหมาย');
-            }}
+            onCreateAppointment={openCreateAppointment}
+            onEditAppointment={openEditAppointment}
           />
         );
       case 'บันทึกรายการรักษา':
@@ -1767,6 +1877,97 @@ export default function App() {
     }
   }
 
+  const createAppointment = (data) => {
+    const payload = data && typeof data === 'object' ? data : {};
+    const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const date = String(payload?.date || '').trim();
+    const timeStart = String(payload?.timeStart || payload?.time || '').trim();
+    const timeEnd = String(payload?.timeEnd || '').trim();
+    const patient =
+      String(payload?.customerName || payload?.patient || '').trim() || '-';
+    const service = String(
+      payload?.subject || payload?.service || payload?.details || ''
+    ).trim();
+
+    const calendarAppt = {
+      ...payload,
+      date,
+      timeStart,
+      timeEnd,
+      time: timeStart,
+      patient,
+      service: service || 'นัดหมาย',
+    };
+
+    // Update UI immediately (calendar updates right away)
+    setAppointments((prev) => [
+      ...(Array.isArray(prev) ? prev : []).map((a) => a),
+      { id, ...calendarAppt },
+    ]);
+
+    console.log('สร้างนัดหมาย:', calendarAppt);
+    openModal('สร้างนัดหมายสำเร็จ');
+  };
+
+  const updateAppointment = (data) => {
+    const payload = data && typeof data === 'object' ? data : {};
+    const id = String(payload?.id || '').trim();
+    if (!id) {
+      console.warn('Update appointment skipped: missing id', payload);
+      openModal('ไม่สามารถแก้ไขนัดหมายได้ (ไม่พบรหัสรายการ)');
+      return;
+    }
+
+    const date = String(payload?.date || '').trim();
+    const timeStart = String(payload?.timeStart || payload?.time || '').trim();
+    const timeEnd = String(payload?.timeEnd || '').trim();
+    const patient =
+      String(payload?.customerName || payload?.patient || '').trim() || '-';
+    const service = String(
+      payload?.subject || payload?.service || payload?.details || ''
+    ).trim();
+
+    const calendarAppt = {
+      ...payload,
+      date,
+      timeStart,
+      timeEnd,
+      time: timeStart,
+      patient,
+      service: service || 'นัดหมาย',
+    };
+
+    setAppointments((prev) => {
+      const items = Array.isArray(prev) ? prev : [];
+      return items.map((a) =>
+        String(a?.id || '').trim() === id ? { ...a, ...calendarAppt, id } : a
+      );
+    });
+
+    console.log('แก้ไขนัดหมาย:', calendarAppt);
+    openModal('บันทึกการแก้ไขนัดหมายสำเร็จ');
+  };
+
+  const deleteAppointment = (apptOrId) => {
+    const id =
+      typeof apptOrId === 'string'
+        ? apptOrId
+        : String(apptOrId?.id || '').trim();
+    if (!id) {
+      openModal('ไม่สามารถลบนัดหมายได้ (ไม่พบรหัสรายการ)');
+      return;
+    }
+
+    setAppointments((prev) => {
+      const items = Array.isArray(prev) ? prev : [];
+      return items.filter((a) => String(a?.id || '').trim() !== id);
+    });
+
+    console.log('ลบนัดหมาย:', id);
+    openModal('ลบนัดหมายสำเร็จ');
+  };
+
   return (
     <div className={`app${navCompact ? ' nav-compact' : ''}`}>
       <header className="header" ref={headerRef}>
@@ -1919,6 +2120,37 @@ export default function App() {
           <Page activePage={active} />
         </div>
       </main>
+
+      <AppointmentCreateModal
+        open={appointmentModal.open}
+        mode={appointmentModal.mode}
+        initialAppointment={appointmentModal.initialAppointment}
+        onClose={() =>
+          setAppointmentModal({
+            open: false,
+            mode: 'create',
+            initialAppointment: null,
+          })
+        }
+        onDelete={(appt) => {
+          setAppointmentModal({
+            open: false,
+            mode: 'create',
+            initialAppointment: null,
+          });
+          deleteAppointment(appt);
+        }}
+        onSubmit={(payload) => {
+          const mode = appointmentModal.mode;
+          setAppointmentModal({
+            open: false,
+            mode: 'create',
+            initialAppointment: null,
+          });
+          if (mode === 'edit') updateAppointment(payload);
+          else createAppointment(payload);
+        }}
+      />
 
       <Modal open={modal.open} title={modal.title} onClose={closeModal} />
     </div>
