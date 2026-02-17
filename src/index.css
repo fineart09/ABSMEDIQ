@@ -174,7 +174,9 @@ body[data-page-key='products']::before {
 .container {
   width: min(1100px, 92%);
   margin: 0 auto;
-  overflow-x: clip;
+  /* Keep x-overflow clipping at the viewport level (html/body).
+     Clipping here can prevent `position: sticky` (e.g. `.page-sticky-header`) from working. */
+  overflow-x: visible;
 }
 
 /* Utility: make content span full viewport width, aligned to page left */
@@ -962,6 +964,91 @@ body[data-page-key='products']::before {
   flex: 0 0 auto;
 }
 
+/* Treatment record popup: large modal with internal scrolling */
+.modal--treatment-record {
+  width: min(920px, 94%);
+  max-height: min(92vh, 980px);
+}
+.modal--treatment-record .modal-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.modal--treatment-record .modal-actions {
+  flex-wrap: wrap;
+}
+
+.modal--treatment-record .modal-actions.treatment-detail-actions {
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.treatment-detail-actions__status {
+  opacity: 0.85;
+}
+
+.treatment-detail-actions__status-value {
+  font-weight: 800;
+}
+
+.treatment-detail-actions__right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.treatment-detail-actions__total {
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.treatment-modal__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 899px) {
+  .treatment-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.treatment-detail-grid {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 900px) {
+  .treatment-detail-grid {
+    grid-template-columns: 160px minmax(0, 1fr) 160px minmax(0, 1fr);
+  }
+}
+
+.treatment-detail-grid__label {
+  font-weight: 700;
+}
+
+.treatment-detail-grid__value {
+  min-width: 0;
+}
+
+.treatment-detail-grid__value--strong {
+  font-weight: 800;
+}
+
+.treatment-detail-grid__value--span {
+  grid-column: 2 / -1;
+  white-space: pre-wrap;
+}
+
 .modal--po-details {
   width: min(820px, 94%);
   max-height: min(90vh, 900px);
@@ -1057,9 +1144,30 @@ p {
   min-height: 72px; /* match default used in thead sticky calc */
 }
 
+/* Fixed variant: for pages that must keep the title visible regardless of sticky constraints */
+.page-sticky-header--fixed {
+  position: fixed;
+  top: var(--header-offset, 56px);
+  /* Match `.container` width/centering so layout looks like Customers page */
+  width: min(1100px, 92%);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Reserve space for the fixed page header so content doesn't slide underneath */
+.record-service-fees-page {
+  padding-top: var(--page-sticky-height, 72px);
+}
+
 /* Allow logo watermark to be visible on heavy-table pages */
 .customers-page .page-sticky-header,
 .products-page .page-sticky-header {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+.record-service-fees-page .page-sticky-header {
   background: rgba(255, 255, 255, 0.92);
   -webkit-backdrop-filter: blur(1.5px);
   backdrop-filter: blur(1.5px);

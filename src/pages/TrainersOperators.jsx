@@ -25,7 +25,7 @@ const normalizeTrainersOperators = (src) => {
   });
 };
 
-export default function TrainersOperators({ onBack, onCreateNew }) {
+export default function TrainersOperators({ onBack, onCreateNew, items }) {
   const stickyRef = useRef(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -56,8 +56,8 @@ export default function TrainersOperators({ onBack, onCreateNew }) {
   }, []);
 
   const base = useMemo(
-    () => normalizeTrainersOperators(TRAINERS_OPERATORS_FULL),
-    []
+    () => normalizeTrainersOperators(items ?? TRAINERS_OPERATORS_FULL),
+    [items]
   );
 
   const filtered = useMemo(() => {

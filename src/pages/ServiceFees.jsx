@@ -39,6 +39,7 @@ const normalizeFees = (src) => {
 
 export default function ServiceFees({
   title = 'รายการค่าบริการ',
+  items,
   onCreateNew,
   onOpenTrainersOperators,
   onBackToRecord,
@@ -73,7 +74,10 @@ export default function ServiceFees({
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  const base = useMemo(() => normalizeFees(SERVICE_FEES_FULL), []);
+  const base = useMemo(
+    () => normalizeFees(items ?? SERVICE_FEES_FULL),
+    [items]
+  );
 
   const filtered = useMemo(() => {
     const q = String(query || '')

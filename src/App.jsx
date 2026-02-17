@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { formatDateDMY } from './utils/date';
 import CreateCustomer from './pages/CreateCustomer.jsx';
 import CreateProduct from './pages/CreateProduct.jsx';
 import Customers from './pages/Customers.jsx';
@@ -21,7 +22,9 @@ import IngredientMovements from './pages/IngredientMovements.jsx';
 import ReceiveIngredientsStock from './pages/ReceiveIngredientsStock.jsx';
 import ServiceFees from './pages/ServiceFees.jsx';
 import RecordServiceFees from './pages/RecordServiceFees.jsx';
+import CreateServiceFee from './pages/CreateServiceFee.jsx';
 import TrainersOperators from './pages/TrainersOperators.jsx';
+import CreateTrainerOperator from './pages/CreateTrainerOperator.jsx';
 import AppointmentCalendar from './components/AppointmentCalendar.jsx';
 import AppointmentCreateModal from './components/AppointmentCreateModal.jsx';
 import MOCK_PRODUCTS_FULL from './mocks/productsFull';
@@ -30,6 +33,9 @@ import SUPPLIERS_FULL from './mocks/suppliersFull';
 import CONSUMABLES_FULL from './mocks/consumablesFull.js';
 import INGREDIENTS_FULL from './mocks/ingredientsFull.js';
 import APPOINTMENTS_STAGE from './mocks/appointmentsStage.js';
+import SERVICE_FEES_FULL from './mocks/serviceFeesFull';
+import TRAINERS_OPERATORS_FULL from './mocks/trainersOperatorsFull';
+import ENRICHED_CUSTOMERS from './mocks/customersFull';
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -57,6 +63,869 @@ function Modal({ open, title, onClose }) {
     </div>
   );
 }
+
+const customerDisplayName = (c) => {
+  if (!c || typeof c !== 'object') return 'ไม่ระบุ';
+  const thPrefix = c?.name?.prefixTh || '';
+  const thFirst = c?.name?.firstTh || '';
+  const thLast = c?.name?.lastTh || '';
+  const enFirst = c?.name?.firstEn || '';
+  const enLast = c?.name?.lastEn || '';
+  const nick = c?.name?.nickname || '';
+  if (thPrefix || thFirst || thLast)
+    return `${thPrefix} ${thFirst} ${thLast}`.trim().replace(/\s+/g, ' ');
+  if (enFirst || enLast) return `${enFirst} ${enLast}`.trim();
+  if (nick) return nick;
+  return 'ไม่ระบุ';
+};
+
+function TreatmentRecordModal({
+  open,
+  customers,
+  products,
+  customerQuery,
+  onCustomerQueryChange,
+  selectedCustomer,
+  onSelectCustomer,
+  productQuery,
+  onProductQueryChange,
+  items,
+  onAddProduct,
+  onUpdateQty,
+  onRemoveItem,
+  statusText,
+  onClose,
+  onSave,
+}) {
+  if (!open) return null;
+
+  const customerQ = String(customerQuery || '')
+    .trim()
+    .toLowerCase();
+  const productQ = String(productQuery || '')
+    .trim()
+    .toLowerCase();
+
+  const hasCustomerQuery = !!customerQ;
+  const customerResults = hasCustomerQuery
+    ? (Array.isArray(customers) ? customers : [])
+        .filter((c) => c && typeof c === 'object')
+        .filter((c) => String(c?.status || '').trim() !== 'ไม่ใช้งาน')
+        .filter((c) => {
+          const hn = String(c?.hn || '')
+            .trim()
+            .toLowerCase();
+          const name = customerDisplayName(c).trim().toLowerCase();
+          const phone = String(c?.details?.phone || '')
+            .trim()
+            .toLowerCase();
+          const segment = String(c?.segment || '')
+            .trim()
+            .toLowerCase();
+          const status = String(c?.status || '')
+            .trim()
+            .toLowerCase();
+
+          return (
+            hn.includes(customerQ) ||
+            name.includes(customerQ) ||
+            phone.includes(customerQ) ||
+            segment.includes(customerQ) ||
+            status.includes(customerQ)
+          );
+        })
+        .slice(0, 3)
+    : [];
+
+  const hasProductQuery = !!productQ;
+  const productResults = hasProductQuery
+    ? (Array.isArray(products) ? products : [])
+        .filter((p) => p && typeof p === 'object')
+        .filter((p) => String(p?.status || '').trim() !== 'ไม่ใช้งาน')
+        .filter((p) => {
+          const code = String(p?.code || '').toLowerCase();
+          const th = String(p?.nameTh || '').toLowerCase();
+          const en = String(p?.nameEn || '').toLowerCase();
+          return (
+            code.includes(productQ) ||
+            th.includes(productQ) ||
+            en.includes(productQ)
+          );
+        })
+        .slice(0, 3)
+    : [];
+
+  const subtotal = (Array.isArray(items) ? items : []).reduce((acc, row) => {
+    const qty = Number(row?.qty);
+    const price = Number(row?.price);
+    const line =
+      Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0
+        ? qty * price
+        : 0;
+    return acc + line;
+  }, 0);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal--treatment-record"
+        role="dialog"
+        aria-modal="true"
+        aria-label="บันทึกรายการรักษา"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <h3 style={{ margin: 0 }}>บันทึกรายการรักษา</h3>
+            <span className="badge badge--partial">{statusText}</span>
+          </div>
+        </div>
+
+        <div className="modal-body">
+          <div className="treatment-modal__grid">
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                ค้นหารายชื่อลูกค้า
+              </div>
+              <input
+                className="input"
+                placeholder="ค้นหา HN / ชื่อ / เบอร์โทร / กลุ่มลูกค้า / สถานะ"
+                value={customerQuery}
+                onChange={(e) => onCustomerQueryChange(e.target.value)}
+              />
+
+              <div style={{ marginTop: 10 }}>
+                {selectedCustomer ? (
+                  <div className="table-card" style={{ overflowX: 'auto' }}>
+                    <div style={{ padding: 12 }}>
+                      <div>
+                        <span className="badge badge--hn badge--active">
+                          {String(selectedCustomer?.hn || '-')}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 6, fontWeight: 800 }}>
+                        {customerDisplayName(selectedCustomer)}
+                      </div>
+
+                      <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => onSelectCustomer(null)}
+                        >
+                          ล้างลูกค้า
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="table-card" style={{ overflowX: 'auto' }}>
+                    <table
+                      className="customers-table"
+                      style={{ width: '100%', fontSize: 12, lineHeight: 1.2 }}
+                    >
+                      <thead>
+                        <tr>
+                          <th style={{ width: 110 }}>HN</th>
+                          <th>ชื่อ</th>
+                          <th style={{ width: 110 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {!hasCustomerQuery ? (
+                          Array.from({ length: 3 }).map((_, idx) => (
+                            <tr key={`blank-customer-${idx}`}>
+                              <td style={{ height: 34 }}>&nbsp;</td>
+                              <td>&nbsp;</td>
+                              <td>&nbsp;</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <>
+                            {customerResults.length ? (
+                              customerResults.map((c) => (
+                                <tr key={String(c?.hn || '')}>
+                                  <td style={{ height: 34 }}>
+                                    {String(c?.hn || '-')}
+                                  </td>
+                                  <td>{customerDisplayName(c)}</td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <button
+                                      type="button"
+                                      className="button button--blue"
+                                      onClick={() => onSelectCustomer(c)}
+                                    >
+                                      เลือก
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={3}
+                                  style={{
+                                    textAlign: 'center',
+                                    color: '#6b7280',
+                                    height: 34,
+                                  }}
+                                >
+                                  ไม่พบลูกค้า
+                                </td>
+                              </tr>
+                            )}
+                            {Array.from({
+                              length: Math.max(
+                                0,
+                                3 - Math.max(1, customerResults.length)
+                              ),
+                            }).map((_, idx) => (
+                              <tr key={`pad-customer-${idx}`}>
+                                <td style={{ height: 34 }}>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                เพิ่มสินค้าเข้ารายการ
+              </div>
+              <input
+                className="input"
+                placeholder="ค้นหารหัสสินค้า หรือชื่อสินค้า"
+                value={productQuery}
+                onChange={(e) => onProductQueryChange(e.target.value)}
+              />
+
+              <div
+                className="table-card"
+                style={{
+                  marginTop: 10,
+                  overflowX: 'auto',
+                }}
+              >
+                <table
+                  className="customers-table"
+                  style={{ width: '100%', fontSize: 12, lineHeight: 1.2 }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ width: 110 }}>รหัส</th>
+                      <th>สินค้า</th>
+                      <th style={{ width: 110, textAlign: 'right' }}>ราคา</th>
+                      <th style={{ width: 110 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!hasProductQuery ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <tr key={`blank-product-${idx}`}>
+                          <td style={{ height: 34 }}>&nbsp;</td>
+                          <td>&nbsp;</td>
+                          <td>&nbsp;</td>
+                          <td>&nbsp;</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <>
+                        {productResults.length ? (
+                          productResults.map((p) => (
+                            <tr key={String(p?.code || '')}>
+                              <td style={{ height: 34 }}>
+                                {String(p?.code || '-')}
+                              </td>
+                              <td>{String(p?.nameTh || p?.nameEn || '-')}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                {Number(p?.price || 0).toLocaleString('th-TH')}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  className="button button--blue"
+                                  onClick={() => onAddProduct(p)}
+                                >
+                                  เพิ่ม
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              style={{
+                                textAlign: 'center',
+                                color: '#6b7280',
+                                height: 34,
+                              }}
+                            >
+                              ไม่พบสินค้า
+                            </td>
+                          </tr>
+                        )}
+                        {Array.from({
+                          length: Math.max(
+                            0,
+                            3 - Math.max(1, productResults.length)
+                          ),
+                        }).map((_, idx) => (
+                          <tr key={`pad-product-${idx}`}>
+                            <td style={{ height: 34 }}>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, fontWeight: 800 }}>
+            รายการสินค้าในบิล
+          </div>
+          <div
+            className="table-card"
+            style={{ marginTop: 10, overflowX: 'auto' }}
+          >
+            <table className="customers-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>รหัส</th>
+                  <th>สินค้า</th>
+                  <th style={{ width: 120, textAlign: 'right' }}>ราคา</th>
+                  <th style={{ width: 120 }}>จำนวน</th>
+                  <th style={{ width: 130, textAlign: 'right' }}>รวม</th>
+                  <th style={{ width: 90 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Array.isArray(items) ? items : []).length ? (
+                  items.map((row) => {
+                    const qty = Number(row?.qty);
+                    const price = Number(row?.price);
+                    const lineTotal =
+                      Number.isFinite(qty) && qty > 0 && Number.isFinite(price)
+                        ? qty * price
+                        : 0;
+                    return (
+                      <tr key={String(row?.code || '')}>
+                        <td>{String(row?.code || '-')}</td>
+                        <td>{String(row?.name || '-')}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(price || 0).toLocaleString('th-TH')}
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={Number.isFinite(qty) && qty > 0 ? qty : 1}
+                            onChange={(e) =>
+                              onUpdateQty(row?.code, e.target.value)
+                            }
+                            style={{ width: '100%' }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(lineTotal || 0).toLocaleString('th-TH')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => onRemoveItem(row?.code)}
+                          >
+                            ลบ
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center' }}>
+                      ยังไม่มีสินค้าในรายการ
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ opacity: 0.85 }}>
+              สถานะ: <span style={{ fontWeight: 800 }}>{statusText}</span>
+            </div>
+            <div style={{ fontWeight: 900 }}>
+              รวมทั้งหมด: {Number(subtotal || 0).toLocaleString('th-TH')} บาท
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="button" onClick={onClose}>
+            ปิด
+          </button>
+          <button
+            type="button"
+            className="button button--blue"
+            onClick={onSave}
+          >
+            บันทึก (รอชำระเงิน)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TreatmentRecordDetailModal({
+  open,
+  record,
+  customers,
+  customerConditions,
+  products,
+  onClose,
+  onSave,
+}) {
+  const [draftItems, setDraftItems] = useState([]);
+  const [productQuery, setProductQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    const items = Array.isArray(record?.items) ? record.items : [];
+    setDraftItems(
+      items.map((row) => ({
+        code: String(row?.code || '').trim(),
+        name: String(row?.name || '').trim(),
+        price: Number(row?.price) || 0,
+        qty: Number(row?.qty) || 1,
+      }))
+    );
+    setProductQuery('');
+  }, [open, record]);
+
+  if (!open || !record) return null;
+
+  const hn = String(record?.customer?.hn || '').trim();
+  const customerRow = (Array.isArray(customers) ? customers : []).find(
+    (c) => String(c?.hn || '').trim() === hn
+  );
+  const conditions =
+    customerConditions && typeof customerConditions === 'object'
+      ? customerConditions[hn]
+      : null;
+
+  const customerNotes = String(customerRow?.details?.notes || '').trim();
+  const customerSegment = String(
+    conditions?.segmentText || conditions?.segment || customerRow?.segment || ''
+  ).trim();
+  const rawDiscount =
+    conditions?.discount ?? customerRow?.discount ?? customerRow?.discount;
+  const discountText = (() => {
+    const s = String(rawDiscount ?? '').trim();
+    if (!s) return '-';
+    const n = Number(s);
+    if (Number.isFinite(n)) return `${n}%`;
+    return s;
+  })();
+  const conditionsNotes = String(conditions?.notes || '').trim();
+
+  const subtotal = draftItems.reduce((acc, row) => {
+    const qty = Number(row?.qty);
+    const price = Number(row?.price);
+    const line =
+      Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0
+        ? qty * price
+        : 0;
+    return acc + line;
+  }, 0);
+
+  const updateQty = (code, nextQtyRaw) => {
+    const key = String(code || '').trim();
+    if (!key) return;
+    const qtyNum = Number(nextQtyRaw);
+    const qty = Number.isFinite(qtyNum) ? Math.max(1, Math.floor(qtyNum)) : 1;
+    setDraftItems((prev) =>
+      (Array.isArray(prev) ? prev : []).map((row) =>
+        String(row?.code || '').trim() === key ? { ...row, qty } : row
+      )
+    );
+  };
+
+  const removeItem = (code) => {
+    const key = String(code || '').trim();
+    if (!key) return;
+    setDraftItems((prev) =>
+      (Array.isArray(prev) ? prev : []).filter(
+        (row) => String(row?.code || '').trim() !== key
+      )
+    );
+  };
+
+  const productQ = String(productQuery || '')
+    .trim()
+    .toLowerCase();
+  const hasProductQuery = !!productQ;
+  const productResults = hasProductQuery
+    ? (Array.isArray(products) ? products : [])
+        .filter((p) => p && typeof p === 'object')
+        .filter((p) => String(p?.status || '').trim() !== 'ไม่ใช้งาน')
+        .filter((p) => {
+          const code = String(p?.code || '').toLowerCase();
+          const th = String(p?.nameTh || '').toLowerCase();
+          const en = String(p?.nameEn || '').toLowerCase();
+          return (
+            code.includes(productQ) ||
+            th.includes(productQ) ||
+            en.includes(productQ)
+          );
+        })
+        .slice(0, 3)
+    : [];
+
+  const addProduct = (p) => {
+    const code = String(p?.code || '').trim();
+    if (!code) return;
+    const name = String(p?.nameTh || p?.nameEn || '').trim() || code;
+    const priceNum = Number(p?.price);
+    const price = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : 0;
+
+    setDraftItems((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      const idx = src.findIndex((x) => String(x?.code || '').trim() === code);
+      if (idx >= 0) {
+        const row = src[idx];
+        const qty = Number(row?.qty);
+        const nextQty = Number.isFinite(qty) && qty > 0 ? qty + 1 : 2;
+        const next = src.map((x) => ({ ...x }));
+        next[idx] = { ...next[idx], qty: nextQty };
+        return next;
+      }
+      return [...src, { code, name, price, qty: 1 }];
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal modal--treatment-record"
+        role="dialog"
+        aria-modal="true"
+        aria-label="รายละเอียดรายการรักษา"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <h3 style={{ margin: 0 }}>รายละเอียดรายการรักษา</h3>
+            <span className="badge badge--partial">
+              {String(record?.status || '-')}
+            </span>
+          </div>
+        </div>
+
+        <div className="modal-body">
+          <div className="treatment-detail-grid">
+            <div className="treatment-detail-grid__label">วันที่</div>
+            <div className="treatment-detail-grid__value">
+              {formatDateDMY(String(record?.createdAt || ''))}
+            </div>
+            <div className="treatment-detail-grid__label">เลขที่</div>
+            <div className="treatment-detail-grid__value treatment-detail-grid__value--strong">
+              {String(record?.refNo || '-')}
+            </div>
+
+            <div className="treatment-detail-grid__label">HN</div>
+            <div className="treatment-detail-grid__value">
+              <span className="badge badge--hn">
+                {String(record?.customer?.hn || '-')}
+              </span>
+            </div>
+            <div className="treatment-detail-grid__label">ชื่อลูกค้า</div>
+            <div className="treatment-detail-grid__value">
+              {String(record?.customer?.name || '-')}
+            </div>
+
+            <div className="treatment-detail-grid__label">หมายเหตุ</div>
+            <div className="treatment-detail-grid__value treatment-detail-grid__value--span">
+              {customerNotes || '-'}
+            </div>
+
+            <div className="treatment-detail-grid__label">กลุ่มลูกค้า</div>
+            <div className="treatment-detail-grid__value">
+              {customerSegment || '-'}
+            </div>
+            <div className="treatment-detail-grid__label">ส่วนลดลูกค้า</div>
+            <div className="treatment-detail-grid__value">{discountText}</div>
+
+            <div className="treatment-detail-grid__label">หมายเหตุเงื่อนไข</div>
+            <div className="treatment-detail-grid__value treatment-detail-grid__value--span">
+              {conditionsNotes || '-'}
+            </div>
+
+            <div className="treatment-detail-grid__label">ผู้บันทึกรายการ</div>
+            <div className="treatment-detail-grid__value treatment-detail-grid__value--span">
+              {String(record?.createdBy || '-')}
+            </div>
+          </div>
+
+          <div style={{ fontWeight: 800, marginTop: 6 }}>
+            เพิ่มสินค้าเข้ารายการ
+          </div>
+          <input
+            className="input"
+            placeholder="ค้นหารหัสสินค้า หรือชื่อสินค้า"
+            value={productQuery}
+            onChange={(e) => setProductQuery(e.target.value)}
+          />
+          <div
+            className="table-card"
+            style={{
+              marginTop: 10,
+              overflowX: 'auto',
+            }}
+          >
+            <table className="customers-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>รหัส</th>
+                  <th>สินค้า</th>
+                  <th style={{ width: 110, textAlign: 'right' }}>ราคา</th>
+                  <th style={{ width: 110 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {!hasProductQuery ? (
+                  Array.from({ length: 3 }).map((_, idx) => (
+                    <tr key={`blank-${idx}`}>
+                      <td style={{ height: 34 }}>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))
+                ) : (
+                  <>
+                    {productResults.length ? (
+                      productResults.map((p) => (
+                        <tr key={String(p?.code || '')}>
+                          <td style={{ height: 34 }}>
+                            {String(p?.code || '-')}
+                          </td>
+                          <td>{String(p?.nameTh || p?.nameEn || '-')}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {Number(p?.price || 0).toLocaleString('th-TH')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="button button--blue"
+                              onClick={() => addProduct(p)}
+                            >
+                              เพิ่ม
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          style={{
+                            textAlign: 'center',
+                            color: '#6b7280',
+                            height: 34,
+                          }}
+                        >
+                          ไม่พบสินค้า
+                        </td>
+                      </tr>
+                    )}
+                    {Array.from({
+                      length: Math.max(
+                        0,
+                        3 - Math.max(1, productResults.length)
+                      ),
+                    }).map((_, idx) => (
+                      <tr key={`pad-${idx}`}>
+                        <td style={{ height: 34 }}>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    ))}
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ fontWeight: 800, marginTop: 6 }}>รายการสินค้า</div>
+          <div
+            className="table-card"
+            style={{ marginTop: 10, overflowX: 'auto' }}
+          >
+            <table className="customers-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>รหัส</th>
+                  <th>สินค้า</th>
+                  <th style={{ width: 120, textAlign: 'right' }}>ราคา</th>
+                  <th style={{ width: 120 }}>จำนวน</th>
+                  <th style={{ width: 130, textAlign: 'right' }}>รวม</th>
+                  <th style={{ width: 90 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {draftItems.length ? (
+                  draftItems.map((row) => {
+                    const qty = Number(row?.qty);
+                    const price = Number(row?.price);
+                    const lineTotal =
+                      Number.isFinite(qty) && qty > 0 && Number.isFinite(price)
+                        ? qty * price
+                        : 0;
+                    return (
+                      <tr key={String(row?.code || '')}>
+                        <td>{String(row?.code || '-')}</td>
+                        <td>{String(row?.name || '-')}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(price || 0).toLocaleString('th-TH')}
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={Number.isFinite(qty) && qty > 0 ? qty : 1}
+                            onChange={(e) =>
+                              updateQty(row?.code, e.target.value)
+                            }
+                            style={{ width: '100%' }}
+                          />
+                        </td>
+                        <td
+                          style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                        >
+                          {Number(lineTotal || 0).toLocaleString('th-TH')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => removeItem(row?.code)}
+                          >
+                            ลบ
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      style={{ textAlign: 'center', color: '#6b7280' }}
+                    >
+                      ไม่มีรายการสินค้า
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="modal-actions treatment-detail-actions">
+          <div className="treatment-detail-actions__status">
+            สถานะ:{' '}
+            <span className="treatment-detail-actions__status-value">
+              {String(record?.status || '-')}
+            </span>
+          </div>
+
+          <div className="treatment-detail-actions__right">
+            <div className="treatment-detail-actions__total">
+              รวมทั้งหมด: {Number(subtotal || 0).toLocaleString('th-TH')} บาท
+            </div>
+            <button type="button" className="button" onClick={onClose}>
+              ปิด
+            </button>
+            <button
+              type="button"
+              className="button button--blue"
+              onClick={() => onSave?.({ id: record?.id, items: draftItems })}
+              disabled={!draftItems.length}
+            >
+              บันทึกการแก้ไข
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const getVisiblePages = ({ totalPages, currentPage }) => {
+  const pages = [];
+  const total = Math.max(1, Number(totalPages) || 1);
+  const current = Math.min(Math.max(1, Number(currentPage) || 1), total);
+  const maxSimple = 7;
+
+  if (total <= maxSimple) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  pages.push(1);
+  let s = Math.max(2, current - 2);
+  let e = Math.min(total - 1, current + 2);
+  if (s > 2) pages.push('…');
+  for (let i = s; i <= e; i++) pages.push(i);
+  if (e < total - 1) pages.push('…');
+  pages.push(total);
+  return pages;
+};
 
 export default function App() {
   const APPOINTMENTS_LS_KEY = 'absmediq.appointments.v1';
@@ -183,6 +1052,84 @@ export default function App() {
     mode: 'create',
     initialAppointment: null,
   });
+  const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
+  const [treatmentCustomerQuery, setTreatmentCustomerQuery] = useState('');
+  const [treatmentSelectedCustomer, setTreatmentSelectedCustomer] =
+    useState(null);
+  const [treatmentProductQuery, setTreatmentProductQuery] = useState('');
+  const [treatmentItems, setTreatmentItems] = useState([]);
+  const [pendingPayments, setPendingPayments] = useState(() => {
+    const c1 = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS[0] : null;
+    const c2 = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS[1] : null;
+    const now = new Date();
+    const d1 = new Date(now);
+    d1.setDate(d1.getDate() - 1);
+    const d2 = new Date(now);
+    d2.setDate(d2.getDate() - 3);
+
+    const make = ({ createdAt, customer, items, refNo, createdBy }) => {
+      const safeItems = Array.isArray(items) ? items : [];
+      const subtotal = safeItems.reduce((acc, row) => {
+        const qty = Number(row?.qty);
+        const price = Number(row?.price);
+        const line =
+          Number.isFinite(qty) &&
+          qty > 0 &&
+          Number.isFinite(price) &&
+          price >= 0
+            ? qty * price
+            : 0;
+        return acc + line;
+      }, 0);
+      return {
+        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        refNo:
+          String(refNo || '').trim() ||
+          `TR-${String(createdAt || '')
+            .slice(0, 10)
+            .replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
+        type: 'treatment',
+        status: 'รอชำระเงิน',
+        createdAt,
+        createdBy: String(createdBy || '').trim() || 'ระบบ',
+        customer,
+        items: safeItems,
+        subtotal,
+      };
+    };
+
+    return [
+      make({
+        createdAt: d1.toISOString(),
+        refNo: 'TR-20260216-0001',
+        createdBy: 'แอดมิน',
+        customer: {
+          hn: String(c1?.hn || 'HN001'),
+          name: customerDisplayName(c1) || 'ลูกค้าตัวอย่าง 1',
+        },
+        items: [
+          { code: 'PRD001', name: 'ครีมบำรุงผิวหน้า', price: 890, qty: 1 },
+          { code: 'PRD002', name: 'เซรั่มวิตามินซี', price: 1290, qty: 1 },
+        ],
+      }),
+      make({
+        createdAt: d2.toISOString(),
+        refNo: 'TR-20260214-0002',
+        createdBy: 'แอดมิน',
+        customer: {
+          hn: String(c2?.hn || 'HN002'),
+          name: customerDisplayName(c2) || 'ลูกค้าตัวอย่าง 2',
+        },
+        items: [
+          { code: 'PRD005', name: 'มาสก์หน้าชุ่มชื้น', price: 79, qty: 5 },
+        ],
+      }),
+    ];
+  });
+  const [recordQuery, setRecordQuery] = useState('');
+  const [recordPage, setRecordPage] = useState(1);
+  const [recordPageSize, setRecordPageSize] = useState(10);
+  const [treatmentDetailRow, setTreatmentDetailRow] = useState(null);
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
   const [consumableMovementFilterCode, setConsumableMovementFilterCode] =
@@ -202,6 +1149,12 @@ export default function App() {
     const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
     return src.map(stripProductPhotoUrl);
   });
+  const [serviceFees, setServiceFees] = useState(() =>
+    Array.isArray(SERVICE_FEES_FULL) ? SERVICE_FEES_FULL : []
+  );
+  const [trainersOperators, setTrainersOperators] = useState(() =>
+    Array.isArray(TRAINERS_OPERATORS_FULL) ? TRAINERS_OPERATORS_FULL : []
+  );
   const [consumables, setConsumables] = useState(() =>
     Array.isArray(CONSUMABLES_FULL) ? CONSUMABLES_FULL : []
   );
@@ -230,6 +1183,162 @@ export default function App() {
   const dropdownButtonRefs = useRef({});
   const openModal = (title) => setModal({ open: true, title });
   const closeModal = () => setModal({ open: false, title: '' });
+
+  const openTreatmentModal = () => {
+    setTreatmentModalOpen(true);
+    setTreatmentCustomerQuery('');
+    setTreatmentSelectedCustomer(null);
+    setTreatmentProductQuery('');
+    setTreatmentItems([]);
+  };
+
+  const closeTreatmentModal = () => setTreatmentModalOpen(false);
+
+  const addTreatmentProduct = (p) => {
+    const code = String(p?.code || '').trim();
+    if (!code) return;
+    const name = String(p?.nameTh || p?.nameEn || '').trim() || code;
+    const priceNum = Number(p?.price);
+    const price = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : 0;
+
+    setTreatmentItems((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      const idx = src.findIndex((x) => String(x?.code || '').trim() === code);
+      if (idx >= 0) {
+        const row = src[idx];
+        const qty = Number(row?.qty);
+        const nextQty = Number.isFinite(qty) && qty > 0 ? qty + 1 : 2;
+        const next = src.map((x) => ({ ...x }));
+        next[idx] = { ...next[idx], qty: nextQty };
+        return next;
+      }
+      return [...src, { code, name, price, qty: 1 }];
+    });
+  };
+
+  const updateTreatmentQty = (code, nextQtyRaw) => {
+    const key = String(code || '').trim();
+    if (!key) return;
+    const qtyNum = Number(nextQtyRaw);
+    const qty = Number.isFinite(qtyNum) ? Math.max(1, Math.floor(qtyNum)) : 1;
+    setTreatmentItems((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((row) =>
+        String(row?.code || '').trim() === key ? { ...row, qty } : row
+      );
+    });
+  };
+
+  const removeTreatmentItem = (code) => {
+    const key = String(code || '').trim();
+    if (!key) return;
+    setTreatmentItems((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.filter((row) => String(row?.code || '').trim() !== key);
+    });
+  };
+
+  const saveTreatmentRecord = () => {
+    if (!treatmentSelectedCustomer) {
+      openModal('กรุณาเลือกลูกค้า');
+      return;
+    }
+
+    const items = Array.isArray(treatmentItems) ? treatmentItems : [];
+    if (!items.length) {
+      openModal('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ');
+      return;
+    }
+
+    const subtotal = items.reduce((acc, row) => {
+      const qty = Number(row?.qty);
+      const price = Number(row?.price);
+      const line =
+        Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0
+          ? qty * price
+          : 0;
+      return acc + line;
+    }, 0);
+
+    const record = {
+      id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      refNo: `TR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
+        1000 + Math.random() * 9000
+      )}`,
+      type: 'treatment',
+      status: 'รอชำระเงิน',
+      createdAt: new Date().toISOString(),
+      createdBy: 'ระบบ',
+      customer: {
+        hn: String(treatmentSelectedCustomer?.hn || '').trim(),
+        name: customerDisplayName(treatmentSelectedCustomer),
+      },
+      items: items.map((row) => ({
+        code: String(row?.code || '').trim(),
+        name: String(row?.name || '').trim(),
+        price: Number(row?.price) || 0,
+        qty: Number(row?.qty) || 1,
+      })),
+      subtotal,
+    };
+
+    setPendingPayments((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return [record, ...src];
+    });
+
+    console.log('บันทึกรายการรักษา (รอชำระเงิน):', record);
+    setTreatmentModalOpen(false);
+    openModal('บันทึกรายการรักษาสำเร็จ (รอชำระเงิน)');
+  };
+
+  const updateTreatmentRecord = ({ id, items }) => {
+    const key = String(id || '').trim();
+    if (!key) return;
+
+    const normalizedItems = (Array.isArray(items) ? items : [])
+      .map((row) => ({
+        code: String(row?.code || '').trim(),
+        name: String(row?.name || '').trim(),
+        price: Number(row?.price) || 0,
+        qty: Number(row?.qty) || 1,
+      }))
+      .filter((row) => row.code);
+
+    if (!normalizedItems.length) {
+      openModal('กรุณาให้มีสินค้าอย่างน้อย 1 รายการ');
+      return;
+    }
+
+    const subtotal = normalizedItems.reduce((acc, row) => {
+      const qty = Number(row?.qty);
+      const price = Number(row?.price);
+      const line =
+        Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0
+          ? qty * price
+          : 0;
+      return acc + line;
+    }, 0);
+
+    setPendingPayments((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((r) =>
+        String(r?.id || '').trim() === key
+          ? { ...r, items: normalizedItems, subtotal }
+          : r
+      );
+    });
+
+    setTreatmentDetailRow((prev) => {
+      if (!prev) return prev;
+      return String(prev?.id || '').trim() === key
+        ? { ...prev, items: normalizedItems, subtotal }
+        : prev;
+    });
+
+    setTreatmentDetailRow(null);
+    openModal('บันทึกการแก้ไขรายการสำเร็จ');
+  };
 
   const openCreateAppointment = () => {
     setAppointmentModal({
@@ -465,6 +1574,9 @@ export default function App() {
     'ผู้ให้บริการ',
     'ค่าจ้างผู้ให้บริการ',
     'รายการค่าบริการ',
+    'สร้างรายการค่าบริการ',
+    'ผู้ฝึกสอน/ผู้ดำเนินการ',
+    'สร้างผู้ฝึกสอน/ผู้ดำเนินการ',
   ];
 
   const scheduleSubPages = ['ตารางนัดหมาย', 'แก้ไขข้อมูลนัดหมาย'];
@@ -478,12 +1590,7 @@ export default function App() {
     {
       id: 'record',
       label: 'บันทึกรายการ',
-      items: [
-        'บันทึกรายการรักษา',
-        'แก้ไขรายการรักษา',
-        'บันทึกรายการใช้บริการ',
-        'แก้ไขรายการใช้บริการ',
-      ],
+      // Removed dropdown items to render as a simple button
     },
     {
       id: 'services',
@@ -542,6 +1649,299 @@ export default function App() {
   function Page({ activePage }) {
     // Simple single-page views. Extend these with real components as needed.
     switch (activePage) {
+      case 'บันทึกรายการ': {
+        const allRows = (Array.isArray(pendingPayments) ? pendingPayments : [])
+          .filter((r) => String(r?.type || '') === 'treatment')
+          .slice()
+          .sort((a, b) => {
+            const ta = String(a?.createdAt || '');
+            const tb = String(b?.createdAt || '');
+            return tb.localeCompare(ta);
+          });
+
+        const q = String(recordQuery || '')
+          .trim()
+          .toLowerCase();
+        const rows = q
+          ? allRows.filter((r) => {
+              const hay = [
+                String(r?.id || ''),
+                String(r?.refNo || ''),
+                String(r?.customer?.hn || ''),
+                String(r?.customer?.name || ''),
+                String(r?.status || ''),
+                String(r?.createdBy || ''),
+                ...(Array.isArray(r?.items)
+                  ? r.items.flatMap((it) => [
+                      String(it?.code || ''),
+                      String(it?.name || ''),
+                    ])
+                  : []),
+              ]
+                .join(' ')
+                .toLowerCase();
+              return hay.includes(q);
+            })
+          : allRows;
+
+        const totalPages = Math.max(1, Math.ceil(rows.length / recordPageSize));
+        const currentPage = Math.min(recordPage, totalPages);
+        const start = (currentPage - 1) * recordPageSize;
+        const end = start + recordPageSize;
+        const pagedRows = rows.slice(start, end);
+        const visiblePages = getVisiblePages({ totalPages, currentPage });
+
+        return (
+          <section className="record-page">
+            <div className="page-sticky-header">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  marginBottom: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h1 className="page-title">บันทึกรายการ</h1>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button button--blue"
+                    onClick={openTreatmentModal}
+                  >
+                    บันทึกรายการรักษา
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="toolbar"
+                style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+              >
+                <input
+                  aria-label="ค้นหารายการรักษา"
+                  placeholder="ค้นหา เลขที่ / HN / ชื่อลูกค้า / สถานะ / สินค้า"
+                  value={recordQuery}
+                  onChange={(e) => {
+                    setRecordQuery(e.target.value);
+                    setRecordPage(1);
+                  }}
+                  style={{ flex: 1, padding: '8px 10px' }}
+                />
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setRecordQuery('');
+                    setRecordPage(1);
+                  }}
+                >
+                  ล้าง
+                </button>
+              </div>
+            </div>
+
+            <div className="table-card" style={{ overflowX: 'hidden' }}>
+              <table
+                className="customers-table"
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  tableLayout: 'fixed',
+                  fontSize: 12,
+                  lineHeight: 1.25,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
+                      วันที่
+                    </th>
+                    <th
+                      style={{ padding: 6, width: 140, whiteSpace: 'nowrap' }}
+                    >
+                      เลขที่
+                    </th>
+                    <th style={{ padding: 6, width: 95, whiteSpace: 'nowrap' }}>
+                      HN
+                    </th>
+                    <th style={{ padding: 6 }}>ชื่อลูกค้า</th>
+                    <th style={{ padding: 6, width: 120, textAlign: 'right' }}>
+                      จำนวนเงิน
+                    </th>
+                    <th
+                      style={{ padding: 6, width: 120, whiteSpace: 'nowrap' }}
+                    >
+                      สถานะ
+                    </th>
+                    <th
+                      style={{
+                        padding: 6,
+                        width: 40,
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center',
+                      }}
+                      title="รายละเอียด"
+                    >
+                      <span aria-hidden="true">🔍</span>
+                    </th>
+                    <th
+                      style={{ padding: 6, width: 140, whiteSpace: 'nowrap' }}
+                    >
+                      ผู้บันทึกรายการ
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedRows.length ? (
+                    pagedRows.map((r) => (
+                      <tr
+                        key={String(r?.id || '')}
+                        style={{ borderTop: '1px solid #eaeaea' }}
+                      >
+                        <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                          {formatDateDMY(String(r?.createdAt || ''))}
+                        </td>
+                        <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                          {String(r?.refNo || '-')}
+                        </td>
+                        <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                          <span className="badge badge--hn">
+                            {String(r?.customer?.hn || '-')}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: 6,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={String(r?.customer?.name || '')}
+                        >
+                          {String(r?.customer?.name || '-')}
+                        </td>
+                        <td
+                          style={{
+                            padding: 6,
+                            textAlign: 'right',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {Number(r?.subtotal || 0).toLocaleString('th-TH')}
+                        </td>
+                        <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                          <span className="badge badge--partial">
+                            {String(r?.status || '-')}
+                          </span>
+                        </td>
+                        <td style={{ padding: 6, textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => setTreatmentDetailRow(r)}
+                            title="รายละเอียด"
+                            aria-label="รายละเอียด"
+                            style={{ padding: '4px 6px', minWidth: 0 }}
+                          >
+                            🔍
+                          </button>
+                        </td>
+                        <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
+                          {String(r?.createdBy || '-')}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td style={{ padding: 12, color: '#6b7280' }} colSpan={8}>
+                        ยังไม่มีรายการบันทึก
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              className="toolbar"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              <div style={{ color: '#6b7280', fontSize: 12 }}>
+                ทั้งหมด {rows.length.toLocaleString('th-TH')} รายการ
+              </div>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <select
+                  className="input"
+                  aria-label="จำนวนแถวต่อหน้า"
+                  value={recordPageSize}
+                  onChange={(e) => {
+                    setRecordPageSize(Number(e.target.value) || 10);
+                    setRecordPage(1);
+                  }}
+                  style={{ padding: '6px 8px', fontSize: 12 }}
+                >
+                  <option value={10}>10 / หน้า</option>
+                  <option value={20}>20 / หน้า</option>
+                  <option value={50}>50 / หน้า</option>
+                </select>
+
+                <button
+                  type="button"
+                  className="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setRecordPage((p) => Math.max(1, p - 1))}
+                >
+                  ก่อนหน้า
+                </button>
+
+                {visiblePages.map((p, idx) =>
+                  p === '…' ? (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      style={{ padding: '6px 4px' }}
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      className={
+                        p === currentPage ? 'button button--solid' : 'button'
+                      }
+                      onClick={() => setRecordPage(p)}
+                      style={{ minWidth: 40 }}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  className="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() =>
+                    setRecordPage((p) => Math.min(totalPages, p + 1))
+                  }
+                >
+                  ถัดไป
+                </button>
+              </div>
+            </div>
+          </section>
+        );
+      }
       case 'ตารางนัดหมาย':
         return (
           <AppointmentCalendar
@@ -549,13 +1949,6 @@ export default function App() {
             onCreateAppointment={openCreateAppointment}
             onEditAppointment={openEditAppointment}
           />
-        );
-      case 'บันทึกรายการรักษา':
-        return (
-          <>
-            <h1>บันทึกรายการรักษา</h1>
-            <p>หน้าบันทึกรายการรักษา</p>
-          </>
         );
       case 'รายชื่อลูกค้า':
       case 'ค้นหารายชื่อลูกค้า':
@@ -1833,6 +3226,7 @@ export default function App() {
         return (
           <RecordServiceFees
             onOpenServiceFees={() => setActive('รายการค่าบริการ')}
+            onOpenServiceRecord={() => setActive('บันทึกรายการบริการ')}
           />
         );
 
@@ -1840,6 +3234,7 @@ export default function App() {
         return (
           <RecordServiceFees
             onOpenServiceFees={() => setActive('รายการค่าบริการ')}
+            onOpenServiceRecord={() => setActive('บันทึกรายการบริการ')}
           />
         );
 
@@ -1847,9 +3242,28 @@ export default function App() {
         return (
           <ServiceFees
             title="รายการค่าบริการ"
-            onCreateNew={() => openModal('สร้างรายการค่าบริการ')}
+            items={serviceFees}
+            onCreateNew={() => setActive('สร้างรายการค่าบริการ')}
             onOpenTrainersOperators={() => setActive('ผู้ฝึกสอน/ผู้ดำเนินการ')}
             onBackToRecord={() => setActive('บันทึกรายการค่าบริการ')}
+          />
+        );
+
+      case 'สร้างรายการค่าบริการ':
+        return (
+          <CreateServiceFee
+            title="สร้างรายการค่าบริการ"
+            onCancel={() => setActive('รายการค่าบริการ')}
+            onSave={(data) => {
+              if (data && typeof data === 'object') {
+                setServiceFees((prev) => {
+                  const src = Array.isArray(prev) ? prev : [];
+                  return [...src, data];
+                });
+              }
+              setActive('รายการค่าบริการ');
+              openModal('บันทึกข้อมูลค่าบริการสำเร็จ');
+            }}
           />
         );
 
@@ -1857,7 +3271,26 @@ export default function App() {
         return (
           <TrainersOperators
             onBack={() => setActive('รายการค่าบริการ')}
-            onCreateNew={() => openModal('สร้างผู้ฝึกสอน/ผู้ดำเนินการ')}
+            items={trainersOperators}
+            onCreateNew={() => setActive('สร้างผู้ฝึกสอน/ผู้ดำเนินการ')}
+          />
+        );
+
+      case 'สร้างผู้ฝึกสอน/ผู้ดำเนินการ':
+        return (
+          <CreateTrainerOperator
+            title="สร้างผู้ฝึกสอน/ผู้ดำเนินการ"
+            onCancel={() => setActive('ผู้ฝึกสอน/ผู้ดำเนินการ')}
+            onSave={(data) => {
+              if (data && typeof data === 'object') {
+                setTrainersOperators((prev) => {
+                  const src = Array.isArray(prev) ? prev : [];
+                  return [...src, data];
+                });
+              }
+              setActive('ผู้ฝึกสอน/ผู้ดำเนินการ');
+              openModal('บันทึกข้อมูลผู้ฝึกสอน/ผู้ดำเนินการสำเร็จ');
+            }}
           />
         );
       case 'ตั้งค่าทั่วไป':
@@ -2150,6 +3583,35 @@ export default function App() {
           if (mode === 'edit') updateAppointment(payload);
           else createAppointment(payload);
         }}
+      />
+
+      <TreatmentRecordModal
+        open={treatmentModalOpen}
+        customers={ENRICHED_CUSTOMERS}
+        products={products}
+        customerQuery={treatmentCustomerQuery}
+        onCustomerQueryChange={setTreatmentCustomerQuery}
+        selectedCustomer={treatmentSelectedCustomer}
+        onSelectCustomer={setTreatmentSelectedCustomer}
+        productQuery={treatmentProductQuery}
+        onProductQueryChange={setTreatmentProductQuery}
+        items={treatmentItems}
+        onAddProduct={addTreatmentProduct}
+        onUpdateQty={updateTreatmentQty}
+        onRemoveItem={removeTreatmentItem}
+        statusText="รอชำระเงิน"
+        onClose={closeTreatmentModal}
+        onSave={saveTreatmentRecord}
+      />
+
+      <TreatmentRecordDetailModal
+        open={!!treatmentDetailRow}
+        record={treatmentDetailRow}
+        customers={ENRICHED_CUSTOMERS}
+        customerConditions={customerConditions}
+        products={products}
+        onClose={() => setTreatmentDetailRow(null)}
+        onSave={updateTreatmentRecord}
       />
 
       <Modal open={modal.open} title={modal.title} onClose={closeModal} />
