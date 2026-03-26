@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDateDMY } from './utils/date';
 import CreateCustomer from './pages/CreateCustomer.jsx';
 import CreateProduct from './pages/CreateProduct.jsx';
@@ -32,10 +32,45 @@ import MOCK_PURCHASE_ORDERS_FULL from './mocks/purchaseOrdersFull';
 import SUPPLIERS_FULL from './mocks/suppliersFull';
 import CONSUMABLES_FULL from './mocks/consumablesFull.js';
 import INGREDIENTS_FULL from './mocks/ingredientsFull.js';
-import APPOINTMENTS_STAGE from './mocks/appointmentsStage.js';
+import APPOINTMENTS_STAGE, {
+  APPOINTMENT_TOPICS_STAGE,
+} from './mocks/appointmentsStage.js';
 import SERVICE_FEES_FULL from './mocks/serviceFeesFull';
 import TRAINERS_OPERATORS_FULL from './mocks/trainersOperatorsFull';
 import ENRICHED_CUSTOMERS from './mocks/customersFull';
+
+const APPOINTMENT_TOPIC_COLOR_PALETTE = [
+  '#dc2626', // red
+  '#ef4444', // red (bright)
+  '#e11d48', // rose
+  '#f43f5e', // rose (bright)
+  '#db2777', // pink
+  '#ec4899', // pink (bright)
+  '#c026d3', // fuchsia
+  '#d946ef', // fuchsia (bright)
+  '#a21caf', // purple
+  '#a855f7', // purple (bright)
+  '#7c3aed', // violet
+  '#8b5cf6', // violet (bright)
+  '#4f46e5', // indigo
+  '#6366f1', // indigo (bright)
+  '#2563eb', // blue
+  '#3b82f6', // blue (bright)
+  '#0284c7', // sky
+  '#0ea5e9', // sky (bright)
+  '#0891b2', // cyan
+  '#06b6d4', // cyan (bright)
+  '#0f766e', // teal
+  '#14b8a6', // teal (bright)
+  '#059669', // emerald
+  '#10b981', // emerald (bright)
+  '#16a34a', // green
+  '#22c55e', // green (bright)
+  '#65a30d', // lime
+  '#84cc16', // lime (bright)
+  '#d97706', // amber
+  '#f59e0b', // amber (bright)
+];
 
 function Modal({ open, title, onClose }) {
   if (!open) return null;
@@ -53,6 +88,309 @@ function Modal({ open, title, onClose }) {
         </div>
         <div className="modal-body">
           <p>คุณเปิดเมนู: {title}</p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppointmentCustomerTypeModal({ open, onClose, onChoose }) {
+  if (!open) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="เลือกประเภทลูกค้า"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>สร้างนัดหมาย</h3>
+        </div>
+        <div className="modal-body">
+          <p style={{ margin: 0 }}>ลูกค้าเป็นประเภทไหน?</p>
+        </div>
+        <div className="modal-actions" style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className="button button--solid"
+            onClick={() => onChoose?.('existing')}
+          >
+            ลูกค้ามี HN
+          </button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => onChoose?.('new')}
+          >
+            ลูกค้าใหม่
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppointmentTopicsModal({
+  open,
+  topics,
+  onAdd,
+  onUpdateColor,
+  onClose,
+}) {
+  const [newTopic, setNewTopic] = useState('');
+  const [error, setError] = useState('');
+  const [openColorFor, setOpenColorFor] = useState(null);
+
+  const COLOR_PALETTE = APPOINTMENT_TOPIC_COLOR_PALETTE;
+
+  useEffect(() => {
+    if (!open) return;
+    setNewTopic('');
+    setError('');
+    setOpenColorFor(null);
+  }, [open]);
+
+  if (!open) return null;
+
+  const items = Array.isArray(topics) ? topics : [];
+
+  const openColorKey = String(openColorFor || '')
+    .trim()
+    .toLowerCase();
+
+  const getTopicName = (t) => {
+    if (!t) return '';
+    if (typeof t === 'string') return t;
+    return String(t?.name || '').trim();
+  };
+
+  const getTopicColor = (t) => {
+    if (!t || typeof t !== 'object') return '';
+    return String(t?.color || '').trim();
+  };
+
+  const submit = () => {
+    const raw = String(newTopic || '').trim();
+    if (!raw) {
+      setError('กรุณากรอกหัวข้อนัดหมาย');
+      return;
+    }
+    onAdd?.(raw);
+    setNewTopic('');
+    setError('');
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="หัวข้อนัดหมาย"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDownCapture={(e) => {
+          if (!openColorKey) return;
+          const el = e.target;
+          if (!(el instanceof Element)) return;
+          const hit = el.closest(
+            `[data-topic-color-trigger="${openColorKey}"], [data-topic-color-popover="${openColorKey}"]`
+          );
+          if (!hit) setOpenColorFor(null);
+        }}
+      >
+        <div className="modal-header">
+          <h3>หัวข้อนัดหมาย</h3>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div className="table-card" style={{ overflowX: 'auto' }}>
+              <table
+                className="customers-table"
+                aria-label="ตารางหัวข้อนัดหมาย"
+                style={{ width: '100%', fontSize: 12, lineHeight: 1.2 }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ width: 70 }}>ลำดับ</th>
+                    <th>หัวข้อ</th>
+                    <th style={{ width: 110 }}>สี</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length ? (
+                    items.map((t, idx) => {
+                      const name = getTopicName(t);
+                      const color = getTopicColor(t);
+                      const isOpen =
+                        !!name &&
+                        !!openColorFor &&
+                        String(openColorFor).toLowerCase() ===
+                          name.toLowerCase();
+                      const rowKey = String(name || '')
+                        .trim()
+                        .toLowerCase();
+                      return (
+                        <tr key={name || String(idx)}>
+                          <td style={{ height: 34 }}>{idx + 1}</td>
+                          <td>{name || '-'}</td>
+                          <td style={{ height: 34 }}>
+                            <div style={{ position: 'relative' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!name) return;
+                                  setOpenColorFor((prev) =>
+                                    prev &&
+                                    String(prev).toLowerCase() ===
+                                      name.toLowerCase()
+                                      ? null
+                                      : name
+                                  );
+                                }}
+                                disabled={!name}
+                                aria-label={`เลือกสีสำหรับหัวข้อ ${name || idx + 1}`}
+                                title={color || 'ไม่ระบุ'}
+                                data-topic-color-trigger={rowKey}
+                                style={{
+                                  width: 46,
+                                  height: 22,
+                                  borderRadius: 8,
+                                  border: '1px solid #e5e7eb',
+                                  background: '#ffffff',
+                                  padding: 0,
+                                  cursor: name ? 'pointer' : 'not-allowed',
+                                  boxShadow: color
+                                    ? `inset 10px 0 0 0 ${color}`
+                                    : 'none',
+                                }}
+                              />
+
+                              {isOpen ? (
+                                <div
+                                  className="dropdown-menu dropdown-menu--compact"
+                                  role="dialog"
+                                  aria-label={`พาเลตสีสำหรับหัวข้อ ${name}`}
+                                  data-topic-color-popover={rowKey}
+                                  style={{
+                                    top: 'calc(100% + 6px)',
+                                    right: 0,
+                                    left: 'auto',
+                                    minWidth: 220,
+                                    zIndex: 1000,
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onUpdateColor?.(name, '');
+                                      setOpenColorFor(null);
+                                    }}
+                                  >
+                                    ไม่ระบุ
+                                  </button>
+
+                                  <div
+                                    aria-label="ชุดสี"
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns:
+                                        'repeat(6, minmax(22px, 1fr))',
+                                      gap: 6,
+                                      paddingTop: 4,
+                                    }}
+                                  >
+                                    {COLOR_PALETTE.map((c) => {
+                                      const selected = !!color && color === c;
+                                      return (
+                                        <button
+                                          key={c}
+                                          type="button"
+                                          onClick={() => {
+                                            onUpdateColor?.(name, c);
+                                            setOpenColorFor(null);
+                                          }}
+                                          aria-label={`เลือกสี ${c}`}
+                                          title={c}
+                                          style={{
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: 6,
+                                            border: '1px solid #e5e7eb',
+                                            background: c,
+                                            boxShadow: selected
+                                              ? 'inset 0 0 0 2px #111827'
+                                              : 'none',
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        style={{
+                          textAlign: 'center',
+                          color: '#6b7280',
+                          height: 34,
+                        }}
+                      >
+                        ยังไม่มีหัวข้อ
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <label
+                style={{ display: 'block', fontWeight: 700, marginBottom: 6 }}
+              >
+                เพิ่มหัวข้อนัดหมาย
+              </label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  value={newTopic}
+                  onChange={(e) => setNewTopic(e.target.value)}
+                  placeholder="เช่น Drip วิตามิน"
+                  aria-label="เพิ่มหัวข้อนัดหมาย"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="button button--solid"
+                  onClick={submit}
+                >
+                  เพิ่ม
+                </button>
+              </div>
+              {error ? (
+                <div className="field-error" style={{ marginTop: 6 }}>
+                  {error}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={onClose}>
@@ -928,7 +1266,79 @@ const getVisiblePages = ({ totalPages, currentPage }) => {
 };
 
 export default function App() {
-  const APPOINTMENTS_LS_KEY = 'absmediq.appointments.v1';
+  const APPOINTMENTS_LS_KEY = 'absmediq.appointments.v3';
+  const APPOINTMENT_TOPICS_LS_KEY = 'absmediq.appointmentTopics.v3';
+  const MOCK_RESET_MARKER_KEY = 'absmediq.appointments.mockreset.20260310';
+  const TOPIC_PALETTE_MIGRATION_KEY =
+    'absmediq.appointmentTopics.paletteMigration.v20260310';
+
+  const isHex6 = (value) =>
+    /^#[0-9a-fA-F]{6}$/.test(String(value || '').trim());
+
+  const shuffle = (list) => {
+    const out = Array.isArray(list) ? list.slice() : [];
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const r = Math.random();
+      const j = Math.floor(r * (i + 1));
+      const tmp = out[i];
+      out[i] = out[j];
+      out[j] = tmp;
+    }
+    return out;
+  };
+
+  const assignPaletteColors = (items, { force = false } = {}) => {
+    const src = Array.isArray(items) ? items : [];
+    const palette = shuffle(APPOINTMENT_TOPIC_COLOR_PALETTE).filter(isHex6);
+    const paletteSet = new Set(palette.map((c) => c.toLowerCase()));
+    if (!palette.length) return src;
+
+    return src.map((t, idx) => {
+      const name = String(t?.name || '').trim();
+      if (!name) return t;
+      const existing = String(t?.color || '').trim();
+      const okExisting =
+        !!existing &&
+        isHex6(existing) &&
+        paletteSet.has(existing.toLowerCase());
+      if (!force && okExisting) return t;
+      const next = palette[idx % palette.length] || '';
+      return { ...t, color: next };
+    });
+  };
+
+  const cleanupLegacyAppointmentMockKeys = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      const ls = window.localStorage;
+      if (!ls) return;
+      if (ls.getItem(MOCK_RESET_MARKER_KEY)) return;
+
+      const keysToRemove = [
+        'absmediq.appointments.v1',
+        'absmediq.appointments.v2',
+        'absmediq.appointmentTopics.v1',
+        'absmediq.appointmentTopics.v2',
+      ];
+
+      for (const k of keysToRemove) {
+        try {
+          ls.removeItem(k);
+        } catch {
+          // ignore
+        }
+      }
+
+      ls.setItem(MOCK_RESET_MARKER_KEY, new Date().toISOString());
+    } catch {
+      // ignore
+    }
+  };
+
+  // "ลบทิ้งจริงๆ" legacy mock keys (one-time)
+  useEffect(() => {
+    cleanupLegacyAppointmentMockKeys();
+  }, []);
 
   const readAppointmentsFromLocalStorage = () => {
     try {
@@ -960,6 +1370,62 @@ export default function App() {
       // Ignore quota / private mode errors
     }
   };
+
+  const normalizeAppointmentTopics = useCallback((raw) => {
+    const src = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.items)
+        ? raw.items
+        : null;
+    if (!src) return null;
+
+    const out = [];
+    const seen = new Set();
+    for (const t of src) {
+      const name =
+        typeof t === 'string' ? String(t).trim() : String(t?.name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const color =
+        typeof t === 'object' && t ? String(t?.color || '').trim() : '';
+      out.push({ name, color });
+    }
+    return out;
+  }, []);
+
+  const readAppointmentTopicsFromLocalStorage = useCallback(() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = window.localStorage.getItem(APPOINTMENT_TOPICS_LS_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return normalizeAppointmentTopics(parsed);
+    } catch {
+      return null;
+    }
+  }, [APPOINTMENT_TOPICS_LS_KEY, normalizeAppointmentTopics]);
+
+  const writeAppointmentTopicsToLocalStorage = useCallback(
+    (items) => {
+      try {
+        if (typeof window === 'undefined') return;
+        const normalized = normalizeAppointmentTopics(items) || [];
+        window.localStorage.setItem(
+          APPOINTMENT_TOPICS_LS_KEY,
+          JSON.stringify({
+            items: normalized,
+            savedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // Ignore quota / private mode errors
+      }
+    },
+    [APPOINTMENT_TOPICS_LS_KEY, normalizeAppointmentTopics]
+  );
 
   const stripProductPhotoUrl = (p) => {
     if (!p || typeof p !== 'object') return p;
@@ -1047,11 +1513,104 @@ export default function App() {
   };
 
   const [modal, setModal] = useState({ open: false, title: '' });
+  const [appointmentTopics, setAppointmentTopics] = useState(() => {
+    const local = readAppointmentTopicsFromLocalStorage();
+    const base =
+      local && local.length
+        ? local
+        : normalizeAppointmentTopics(APPOINTMENT_TOPICS_STAGE) ||
+          normalizeAppointmentTopics([
+            { name: 'Drip วิตามิน', color: '' },
+            { name: 'ฉีดยา', color: '' },
+            { name: 'ตรวจเลือด', color: '' },
+            { name: 'ทำกายภาพ', color: '' },
+          ]) ||
+          [];
+
+    // One-time migration: overwrite any legacy colors with the new vivid palette.
+    let forceRecolor = false;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        forceRecolor = !window.localStorage.getItem(
+          TOPIC_PALETTE_MIGRATION_KEY
+        );
+        if (forceRecolor) {
+          window.localStorage.setItem(
+            TOPIC_PALETTE_MIGRATION_KEY,
+            new Date().toISOString()
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return assignPaletteColors(base, { force: forceRecolor });
+  });
+  const [appointmentTopicsModalOpen, setAppointmentTopicsModalOpen] =
+    useState(false);
+  const [appointmentCustomerTypeOpen, setAppointmentCustomerTypeOpen] =
+    useState(false);
   const [appointmentModal, setAppointmentModal] = useState({
     open: false,
     mode: 'create',
     initialAppointment: null,
+    customerType: 'existing',
   });
+
+  useEffect(() => {
+    writeAppointmentTopicsToLocalStorage(appointmentTopics);
+  }, [appointmentTopics, writeAppointmentTopicsToLocalStorage]);
+
+  const addAppointmentTopic = (raw) => {
+    const topic = String(raw || '').trim();
+    if (!topic) return;
+    setAppointmentTopics((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      const exists = src.some(
+        (t) =>
+          String(t?.name || '')
+            .trim()
+            .toLowerCase() === topic.toLowerCase()
+      );
+      if (exists) return src;
+
+      const used = new Set(
+        src
+          .map((t) =>
+            String(t?.color || '')
+              .trim()
+              .toLowerCase()
+          )
+          .filter(Boolean)
+      );
+      const pick =
+        APPOINTMENT_TOPIC_COLOR_PALETTE.find(
+          (c) => !used.has(String(c).toLowerCase())
+        ) ||
+        APPOINTMENT_TOPIC_COLOR_PALETTE[
+          Math.floor(Math.random() * APPOINTMENT_TOPIC_COLOR_PALETTE.length)
+        ] ||
+        '';
+
+      return [...src, { name: topic, color: pick }];
+    });
+  };
+
+  const updateAppointmentTopicColor = (nameRaw, colorRaw) => {
+    const name = String(nameRaw || '').trim();
+    if (!name) return;
+    const color = String(colorRaw || '').trim();
+    setAppointmentTopics((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((t) => {
+        const tName = String(t?.name || '').trim();
+        if (!tName) return t;
+        if (tName.toLowerCase() !== name.toLowerCase()) return t;
+        return { ...t, color };
+      });
+    });
+  };
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
   const [treatmentCustomerQuery, setTreatmentCustomerQuery] = useState('');
   const [treatmentSelectedCustomer, setTreatmentSelectedCustomer] =
@@ -1341,11 +1900,11 @@ export default function App() {
   };
 
   const openCreateAppointment = () => {
-    setAppointmentModal({
-      open: true,
-      mode: 'create',
-      initialAppointment: null,
-    });
+    setAppointmentCustomerTypeOpen(true);
+  };
+
+  const openAppointmentTopics = () => {
+    setAppointmentTopicsModalOpen(true);
   };
 
   const openEditAppointment = (appt) => {
@@ -1358,6 +1917,7 @@ export default function App() {
         open: true,
         mode: 'edit',
         initialAppointment: src,
+        customerType: 'existing',
       });
       return;
     }
@@ -1401,6 +1961,7 @@ export default function App() {
       open: true,
       mode: 'edit',
       initialAppointment: { ...src, id: newId },
+      customerType: 'existing',
     });
   };
   const createCustomerOnServer = async (payload) => {
@@ -1481,11 +2042,12 @@ export default function App() {
       // If localStorage isn't available, do nothing.
       return;
     }
-
-    if (Array.isArray(appointments) && appointments.length) return;
     const seed = Array.isArray(APPOINTMENTS_STAGE) ? APPOINTMENTS_STAGE : [];
     if (!seed.length) return;
-    setAppointments(seed);
+    setAppointments((prev) => {
+      if (Array.isArray(prev) && prev.length) return prev;
+      return seed;
+    });
   }, []);
 
   useEffect(() => {
@@ -1946,7 +2508,9 @@ export default function App() {
         return (
           <AppointmentCalendar
             appointments={appointments}
+            appointmentTopics={appointmentTopics}
             onCreateAppointment={openCreateAppointment}
+            onAppointmentTopics={openAppointmentTopics}
             onEditAppointment={openEditAppointment}
           />
         );
@@ -3314,6 +3878,18 @@ export default function App() {
     const payload = data && typeof data === 'object' ? data : {};
     const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
+    const normalizeAppointmentStatus = (raw) => {
+      const s = String(raw || '')
+        .trim()
+        .toLowerCase();
+      if (!s) return '';
+      if (s === 'attended') return 'attended';
+      if (s === 'cancelled' || s === 'canceled') return 'cancelled';
+      if (s.includes('มาตาม')) return 'attended';
+      if (s.includes('ยกเลิก')) return 'cancelled';
+      return '';
+    };
+
     const date = String(payload?.date || '').trim();
     const timeStart = String(payload?.timeStart || payload?.time || '').trim();
     const timeEnd = String(payload?.timeEnd || '').trim();
@@ -3323,6 +3899,11 @@ export default function App() {
       payload?.subject || payload?.service || payload?.details || ''
     ).trim();
 
+    const appointmentStatus =
+      normalizeAppointmentStatus(
+        payload?.appointmentStatus || payload?.apptStatus || payload?.status
+      ) || '';
+
     const calendarAppt = {
       ...payload,
       date,
@@ -3331,12 +3912,13 @@ export default function App() {
       time: timeStart,
       patient,
       service: service || 'นัดหมาย',
+      appointmentStatus,
     };
 
     // Update UI immediately (calendar updates right away)
     setAppointments((prev) => [
       ...(Array.isArray(prev) ? prev : []).map((a) => a),
-      { id, ...calendarAppt },
+      { ...calendarAppt, id },
     ]);
 
     console.log('สร้างนัดหมาย:', calendarAppt);
@@ -3352,6 +3934,18 @@ export default function App() {
       return;
     }
 
+    const normalizeAppointmentStatus = (raw) => {
+      const s = String(raw || '')
+        .trim()
+        .toLowerCase();
+      if (!s) return '';
+      if (s === 'attended') return 'attended';
+      if (s === 'cancelled' || s === 'canceled') return 'cancelled';
+      if (s.includes('มาตาม')) return 'attended';
+      if (s.includes('ยกเลิก')) return 'cancelled';
+      return '';
+    };
+
     const date = String(payload?.date || '').trim();
     const timeStart = String(payload?.timeStart || payload?.time || '').trim();
     const timeEnd = String(payload?.timeEnd || '').trim();
@@ -3361,6 +3955,11 @@ export default function App() {
       payload?.subject || payload?.service || payload?.details || ''
     ).trim();
 
+    const appointmentStatus =
+      normalizeAppointmentStatus(
+        payload?.appointmentStatus || payload?.apptStatus || payload?.status
+      ) || '';
+
     const calendarAppt = {
       ...payload,
       date,
@@ -3369,6 +3968,7 @@ export default function App() {
       time: timeStart,
       patient,
       service: service || 'นัดหมาย',
+      appointmentStatus,
     };
 
     setAppointments((prev) => {
@@ -3554,15 +4154,40 @@ export default function App() {
         </div>
       </main>
 
+      <AppointmentCustomerTypeModal
+        open={appointmentCustomerTypeOpen}
+        onClose={() => setAppointmentCustomerTypeOpen(false)}
+        onChoose={(type) => {
+          setAppointmentCustomerTypeOpen(false);
+          setAppointmentModal({
+            open: true,
+            mode: 'create',
+            initialAppointment: null,
+            customerType: type === 'new' ? 'new' : 'existing',
+          });
+        }}
+      />
+
+      <AppointmentTopicsModal
+        open={appointmentTopicsModalOpen}
+        topics={appointmentTopics}
+        onAdd={addAppointmentTopic}
+        onUpdateColor={updateAppointmentTopicColor}
+        onClose={() => setAppointmentTopicsModalOpen(false)}
+      />
+
       <AppointmentCreateModal
         open={appointmentModal.open}
         mode={appointmentModal.mode}
         initialAppointment={appointmentModal.initialAppointment}
+        customerType={appointmentModal.customerType}
+        appointmentTopics={appointmentTopics}
         onClose={() =>
           setAppointmentModal({
             open: false,
             mode: 'create',
             initialAppointment: null,
+            customerType: 'existing',
           })
         }
         onDelete={(appt) => {
@@ -3570,6 +4195,7 @@ export default function App() {
             open: false,
             mode: 'create',
             initialAppointment: null,
+            customerType: 'existing',
           });
           deleteAppointment(appt);
         }}
@@ -3579,6 +4205,7 @@ export default function App() {
             open: false,
             mode: 'create',
             initialAppointment: null,
+            customerType: 'existing',
           });
           if (mode === 'edit') updateAppointment(payload);
           else createAppointment(payload);

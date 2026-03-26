@@ -210,7 +210,7 @@ export default function ServiceFees({
 
           <button
             type="button"
-            className="button"
+            className="button button--teal-strong"
             onClick={() => onOpenTrainersOperators?.()}
             disabled={!onOpenTrainersOperators}
           >

@@ -293,6 +293,11 @@ body[data-page-key='products']::before {
   gap: 12px;
 }
 
+/* Allow the left header block to shrink so controls can stay on one row */
+.appt-cal__header > div:first-child {
+  min-width: 0;
+}
+
 .appt-cal__sub {
   margin-top: 2px;
   font-size: 13px;
@@ -311,13 +316,40 @@ body[data-page-key='products']::before {
   align-items: center;
   gap: 10px;
   padding-top: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+
+.appt-cal__controls-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.appt-cal__searchrow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.appt-cal__controls::-webkit-scrollbar {
+  display: none;
+  height: 0;
 }
 
 .appt-cal__nav {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .appt-cal__nav .button {
@@ -455,6 +487,28 @@ body[data-page-key='products']::before {
   padding: 5px 6px;
   overflow: hidden;
   cursor: pointer;
+}
+
+/* Appointment status colors (aligned with existing badge/button palette) */
+.appt-cal__event-block.appt-cal__event--unspecified,
+.appt-cal__month-event.appt-cal__event--unspecified {
+  /* Match the default button tint (users refer to it as light green) */
+  background: rgba(21, 137, 144, 0.08);
+  border-color: rgba(21, 137, 144, 0.22);
+}
+
+.appt-cal__event-block.appt-cal__event--attended,
+.appt-cal__month-event.appt-cal__event--attended {
+  /* Use neutral base styling; topic color is shown via the left stripe */
+  background: rgba(21, 137, 144, 0.08);
+  border-color: rgba(21, 137, 144, 0.22);
+}
+
+.appt-cal__event-block.appt-cal__event--cancelled,
+.appt-cal__month-event.appt-cal__event--cancelled {
+  /* Use neutral base styling; cancelled is indicated by faded topic color stripe */
+  background: rgba(21, 137, 144, 0.08);
+  border-color: rgba(21, 137, 144, 0.22);
 }
 
 .appt-cal__event-block:focus-visible {
@@ -1319,9 +1373,25 @@ p {
   outline-offset: 2px;
 }
 
+/* Slightly stronger teal tint for secondary emphasis */
+.button--teal-strong {
+  background: rgba(21, 137, 144, 0.18);
+  border-color: rgba(21, 137, 144, 0.42);
+  color: #0f766e;
+}
+.button--teal-strong:hover {
+  background: rgba(21, 137, 144, 0.24);
+}
+.button--teal-strong:active {
+  background: rgba(21, 137, 144, 0.29);
+}
+.button--teal-strong:focus-visible {
+  outline-color: #0f766e;
+}
+
 .button--solid {
-  background: #158990;
-  border-color: #158990;
+  background: #0f766e;
+  border-color: #0f766e;
   color: #ffffff;
 }
 .button--solid:hover {
@@ -1329,8 +1399,8 @@ p {
   border-color: #0f766e;
 }
 .button--solid:active {
-  background: #0b5f59;
-  border-color: #0b5f59;
+  background: #0f766e;
+  border-color: #0f766e;
 }
 .button--solid:focus-visible {
   outline-color: #0f766e;

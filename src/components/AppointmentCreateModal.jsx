@@ -23,6 +23,8 @@ export default function AppointmentCreateModal({
   onDelete,
   mode = 'create',
   initialAppointment = null,
+  customerType = 'existing',
+  appointmentTopics = null,
 }) {
   const inputRef = useRef(null);
   const inputWrapRef = useRef(null);
@@ -32,13 +34,29 @@ export default function AppointmentCreateModal({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [pickerPos, setPickerPos] = useState(null);
+  const [manualCustomerName, setManualCustomerName] = useState('');
 
   const [date, setDate] = useState('');
   const [timeStart, setTimeStart] = useState('');
   const [timeEnd, setTimeEnd] = useState('');
   const [subject, setSubject] = useState('');
   const [details, setDetails] = useState('');
+  const [appointmentStatus, setAppointmentStatus] = useState('');
   const [errors, setErrors] = useState({});
+
+  const normalizeAppointmentStatus = (raw) => {
+    const s = String(raw || '')
+      .trim()
+      .toLowerCase();
+    if (!s) return '';
+    if (s === 'attended') return 'attended';
+    if (s === 'cancelled' || s === 'canceled') return 'cancelled';
+
+    // Accept Thai labels too (in case existing data stores display text).
+    if (s.includes('มาตาม')) return 'attended';
+    if (s.includes('ยกเลิก')) return 'cancelled';
+    return '';
+  };
 
   const customers = useMemo(() => {
     const src = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS : [];
@@ -77,9 +95,60 @@ export default function AppointmentCreateModal({
   }, [filtered, pickerPos?.limit]);
 
   const hasQuery = query.trim().length > 0;
-  const showPicker = pickerOpen && hasQuery;
-
   const isEditMode = mode === 'edit';
+  const isNewCustomerCreate = !isEditMode && customerType === 'new';
+  const showPicker = !isNewCustomerCreate && pickerOpen && hasQuery;
+
+  const topics = useMemo(
+    () => (Array.isArray(appointmentTopics) ? appointmentTopics : []),
+    [appointmentTopics]
+  );
+
+  const getTopicName = (t) => {
+    if (!t) return '';
+    if (typeof t === 'string') return String(t).trim();
+    return String(t?.name || '').trim();
+  };
+
+  const getTopicColor = (t) => {
+    if (!t || typeof t !== 'object') return '';
+    return String(t?.color || '').trim();
+  };
+
+  const selectedTopicColor = useMemo(() => {
+    const current = String(subject || '').trim();
+    if (!current) return '';
+    const found = topics.find((t) => {
+      const name = getTopicName(t);
+      return name && name.toLowerCase() === current.toLowerCase();
+    });
+    return getTopicColor(found);
+  }, [topics, subject]);
+
+  const subjectOptions = useMemo(() => {
+    const normalized = topics.map((t) => getTopicName(t)).filter(Boolean);
+    const deduped = [];
+    const seen = new Set();
+    for (const t of normalized) {
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      deduped.push(t);
+    }
+    const current = String(subject || '').trim();
+    if (current) {
+      const inList = deduped.some(
+        (t) => t.toLowerCase() === current.toLowerCase()
+      );
+      if (!inList) return [current, ...deduped];
+    }
+    return deduped;
+  }, [topics, subject]);
+
+  const showForm = isNewCustomerCreate || !!selectedCustomer;
+  const canSubmitCustomer = isNewCustomerCreate
+    ? manualCustomerName.trim().length > 0
+    : !!selectedCustomer;
 
   useEffect(() => {
     if (!open) return;
@@ -131,16 +200,25 @@ export default function AppointmentCreateModal({
 
       const rawDetails = String(appt?.details || '').trim();
       setDetails(rawDetails);
+
+      const statusKey =
+        normalizeAppointmentStatus(
+          appt?.appointmentStatus || appt?.apptStatus || appt?.status
+        ) || 'attended';
+      setAppointmentStatus(statusKey);
       setErrors({});
     } else {
       setQuery('');
       setPickerOpen(false);
       setSelectedCustomer(null);
+      setManualCustomerName('');
       setDate('');
       setTimeStart('');
       setTimeEnd('');
       setSubject('');
       setDetails('');
+      // New appointment: status not specified yet.
+      setAppointmentStatus('');
       setErrors({});
     }
 
@@ -239,7 +317,11 @@ export default function AppointmentCreateModal({
 
   const validate = () => {
     const next = {};
-    if (!selectedCustomer) next.customer = 'กรุณาเลือกลูกค้า';
+    if (isNewCustomerCreate) {
+      if (!manualCustomerName.trim()) next.customer = 'กรุณากรอกชื่อลูกค้า';
+    } else {
+      if (!selectedCustomer) next.customer = 'กรุณาเลือกลูกค้า';
+    }
     if (!date) next.date = 'กรุณาเลือกวันที่';
     if (!timeStart) next.timeStart = 'กรุณาเลือกเวลาเริ่ม';
     if (!timeEnd) next.timeEnd = 'กรุณาเลือกเวลาสิ้นสุด';
@@ -254,22 +336,33 @@ export default function AppointmentCreateModal({
     setErrors(next);
     if (Object.keys(next).length) return;
 
+    const normalizedCustomer = isNewCustomerCreate
+      ? {
+          hn: '',
+          name: manualCustomerName.trim(),
+          phone: '',
+          segment: '',
+          status: 'ใช้งาน',
+        }
+      : selectedCustomer;
+
     const payload = {
       id:
         mode === 'edit'
           ? initialAppointment?.id || initialAppointment?.appointmentId || null
           : undefined,
-      customer: selectedCustomer,
-      customerHn: selectedCustomer?.hn || '',
-      customerName: selectedCustomer?.name || '',
-      customerPhone: selectedCustomer?.phone || '',
-      customerSegment: selectedCustomer?.segment || '',
-      customerStatus: selectedCustomer?.status || '',
+      customer: normalizedCustomer,
+      customerHn: normalizedCustomer?.hn || '',
+      customerName: normalizedCustomer?.name || '',
+      customerPhone: normalizedCustomer?.phone || '',
+      customerSegment: normalizedCustomer?.segment || '',
+      customerStatus: normalizedCustomer?.status || '',
       date,
       timeStart,
       timeEnd,
       subject: String(subject || '').trim(),
       details: String(details || '').trim(),
+      appointmentStatus: normalizeAppointmentStatus(appointmentStatus) || '',
     };
 
     if (typeof onSubmit === 'function') {
@@ -302,24 +395,35 @@ export default function AppointmentCreateModal({
                 <label
                   style={{ display: 'block', fontWeight: 700, marginBottom: 6 }}
                 >
-                  ค้นหารายชื่อลูกค้า
+                  {isNewCustomerCreate ? 'ชื่อลูกค้า *' : 'ค้นหารายชื่อลูกค้า'}
                 </label>
                 <input
                   ref={inputRef}
                   className="input"
-                  aria-label="ค้นหารายชื่อลูกค้า"
-                  placeholder="ค้นหารายชื่อลูกค้า"
-                  value={query}
+                  aria-label={
+                    isNewCustomerCreate ? 'ชื่อลูกค้า' : 'ค้นหารายชื่อลูกค้า'
+                  }
+                  placeholder={
+                    isNewCustomerCreate
+                      ? 'ระบุชื่อลูกค้า'
+                      : 'ค้นหารายชื่อลูกค้า'
+                  }
+                  value={isNewCustomerCreate ? manualCustomerName : query}
                   disabled={isEditMode}
                   readOnly={isEditMode}
                   onChange={(e) => {
                     if (isEditMode) return;
+                    if (isNewCustomerCreate) {
+                      setManualCustomerName(e.target.value);
+                      return;
+                    }
                     setQuery(e.target.value);
                     setSelectedCustomer(null);
                     setPickerOpen(true);
                   }}
                   onFocus={() => {
                     if (isEditMode) return;
+                    if (isNewCustomerCreate) return;
                     setPickerOpen(true);
                   }}
                   onKeyDown={(e) => {
@@ -335,19 +439,45 @@ export default function AppointmentCreateModal({
                 ) : null}
               </div>
 
-              {selectedCustomer ? (
+              {showForm ? (
                 <form id="apptCreateForm" onSubmit={submit}>
                   <div className="form-card" style={{ marginTop: 4 }}>
                     <div className="form-grid">
-                      <label>หัวข้อ</label>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        หัวข้อ
+                        {selectedTopicColor ? (
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 9999,
+                              backgroundColor: selectedTopicColor,
+                              display: 'inline-block',
+                            }}
+                          />
+                        ) : null}
+                      </label>
                       <div>
-                        <input
+                        <select
                           className="input"
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
                           aria-label="หัวข้อการนัดหมาย"
-                          placeholder="เช่น ตรวจติดตามอาการ"
-                        />
+                        >
+                          <option value="">เลือกหัวข้อ</option>
+                          {subjectOptions.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <label>วันที่ *</label>
@@ -431,25 +561,51 @@ export default function AppointmentCreateModal({
 
           <div className="modal-actions">
             {isEditMode ? (
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  if (typeof onDelete === 'function') {
-                    const ok =
-                      typeof window !== 'undefined' &&
-                      typeof window.confirm === 'function'
-                        ? window.confirm('ยืนยันลบนัดหมายรายการนี้หรือไม่?')
-                        : true;
-                    if (!ok) return;
-                    onDelete(initialAppointment);
-                  }
+              <div
+                style={{
+                  marginRight: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
                 }}
-                disabled={!initialAppointment?.id}
-                aria-label="ลบนัดหมาย"
               >
-                ลบนัดหมาย
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>
+                    สถานะนัดหมาย
+                  </label>
+                  <select
+                    className="input"
+                    aria-label="สถานะนัดหมาย"
+                    value={appointmentStatus}
+                    onChange={(e) => setAppointmentStatus(e.target.value)}
+                    style={{ width: 240, maxWidth: '70vw' }}
+                  >
+                    <option value="attended">ลูกค้ามาตามนัดหมาย</option>
+                    <option value="cancelled">ลูกค้ายกเลิกนัดหมาย</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    if (typeof onDelete === 'function') {
+                      const ok =
+                        typeof window !== 'undefined' &&
+                        typeof window.confirm === 'function'
+                          ? window.confirm('ยืนยันลบนัดหมายรายการนี้หรือไม่?')
+                          : true;
+                      if (!ok) return;
+                      onDelete(initialAppointment);
+                    }
+                  }}
+                  disabled={!initialAppointment?.id}
+                  aria-label="ลบนัดหมาย"
+                >
+                  ลบนัดหมาย
+                </button>
+              </div>
             ) : null}
             <button type="button" className="button" onClick={onClose}>
               ยกเลิก
@@ -458,7 +614,7 @@ export default function AppointmentCreateModal({
               type="submit"
               form="apptCreateForm"
               className="button button--solid"
-              disabled={!selectedCustomer}
+              disabled={!canSubmitCustomer}
             >
               {submitText}
             </button>

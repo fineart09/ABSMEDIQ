@@ -102,6 +102,7 @@ export default function CreateCustomer({
         bloodGroup: '',
         birthDate: '',
         phone: '',
+        customerType: 'บุคคลธรรมดา',
         email: '',
         notes: '',
         age: '',
@@ -126,6 +127,8 @@ export default function CreateCustomer({
       bloodGroup: initial.details?.bloodGroup || '',
       birthDate: initial.details?.birthDate || '',
       phone: initial.details?.phone || '',
+      customerType:
+        initial.details?.customerType || initial.customerType || 'บุคคลธรรมดา',
       email: initial.details?.email || '',
       notes: initial.details?.notes || '',
       age: initial.details?.age || '',
@@ -312,6 +315,7 @@ export default function CreateCustomer({
         age: form.age,
         birthDate: form.birthDate,
         phone: form.phone,
+        customerType: form.customerType || 'บุคคลธรรมดา',
         email: form.email,
         notes: form.notes,
       },
@@ -632,6 +636,18 @@ export default function CreateCustomer({
                   onChange={update('phone')}
                   className="input"
                 />
+              </Field>
+
+              <Field label="ประเภทลูกค้า" htmlFor="cc-customer-type">
+                <select
+                  id="cc-customer-type"
+                  value={form.customerType}
+                  onChange={update('customerType')}
+                  className="select"
+                >
+                  <option value="บุคคลธรรมดา">บุคคลธรรมดา</option>
+                  <option value="นิติบุคคล">นิติบุคคล</option>
+                </select>
               </Field>
               <Field label="อีเมล" htmlFor="cc-email" error={errors.email}>
                 <input

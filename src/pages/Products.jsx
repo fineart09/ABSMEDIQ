@@ -277,7 +277,7 @@ export default function Products({
 
             <button
               type="button"
-              className="button button--solid"
+              className="button"
               onClick={() => onViewConsumables?.()}
             >
               วัสดุสิ้นเปลืองและอื่นๆ

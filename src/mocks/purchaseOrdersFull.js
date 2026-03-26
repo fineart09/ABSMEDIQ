@@ -1,6 +1,6 @@
 // Mock purchase orders dataset used by Purchase pages
 
-import { MOCK_PRODUCTS_FULL } from './productsFull';
+import { MOCK_PRODUCTS_FULL } from './productsFull.js';
 
 function seeded(seed) {
   // deterministic pseudo-random in [0, 1)

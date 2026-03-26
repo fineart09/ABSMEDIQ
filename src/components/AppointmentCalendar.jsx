@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function pad2(n) {
   const v = Number(n);
@@ -127,6 +127,53 @@ function getDetails(appt) {
   return safeTrim(appt?.details);
 }
 
+function normalizeAppointmentStatus(raw) {
+  const s = safeTrim(raw).toLowerCase();
+  if (!s) return '';
+  if (s === 'attended') return 'attended';
+  if (s === 'cancelled' || s === 'canceled') return 'cancelled';
+
+  // Support Thai labels (in case stored as display text)
+  if (s.includes('มาตาม')) return 'attended';
+  if (s.includes('ยกเลิก')) return 'cancelled';
+  return '';
+}
+
+function hexToRgb(hex) {
+  const raw = String(hex || '').trim();
+  const m = raw.match(/^#?([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const n = Number.parseInt(m[1], 16);
+  if (!Number.isFinite(n)) return null;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function withAlpha(color, alpha) {
+  const a = Math.max(0, Math.min(1, Number(alpha)));
+  const rgb = hexToRgb(color);
+  if (!rgb) return String(color || '').trim();
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
+}
+
+function topicBlockAlphaByStatus(statusKey) {
+  // Visual rule:
+  // - attended: show topic color clearly (but not fully opaque for readability)
+  // - pending (empty) & cancelled: 30% intensity of attended
+  const attendedAlpha = 0.55;
+  if (statusKey === 'attended') return attendedAlpha;
+  return attendedAlpha * 0.3;
+}
+
+function getAppointmentStatusKey(appt) {
+  const raw = appt?.appointmentStatus || appt?.apptStatus || appt?.status;
+  return normalizeAppointmentStatus(raw);
+}
+
+function getAppointmentStatusClass(appt) {
+  const key = getAppointmentStatusKey(appt);
+  return key ? ` appt-cal__event--${key}` : ' appt-cal__event--unspecified';
+}
+
 function formatTimeRange(appt) {
   const start = getStartTime(appt);
   const end = getEndTime(appt);
@@ -138,22 +185,6 @@ function compareTime(a, b) {
   const ta = getStartTime(a);
   const tb = getStartTime(b);
   return ta.localeCompare(tb);
-}
-
-function snapTimeToStep(timeHHMM, stepMinutes = 30) {
-  const raw = String(timeHHMM || '').trim();
-  const m = raw.match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return '';
-  const hh = Number(m[1]);
-  const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return '';
-  const step = Number(stepMinutes);
-  if (!Number.isFinite(step) || step <= 0) return normalizeTimeHHMM(raw);
-  const total = hh * 60 + mm;
-  const snapped = Math.floor(total / step) * step;
-  const outH = Math.floor(snapped / 60);
-  const outM = snapped % 60;
-  return `${pad2(outH)}:${pad2(outM)}`;
 }
 
 function timeToMinutes(timeHHMM) {
@@ -333,13 +364,76 @@ function formatThaiDateShort(date) {
 
 export default function AppointmentCalendar({
   appointments,
+  appointmentTopics,
   onCreateAppointment,
+  onAppointmentTopics,
   onEditAppointment,
 }) {
-  const [view, setView] = useState('week');
+  const [view, setView] = useState('day');
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()));
-  const [selectedCellKey, setSelectedCellKey] = useState(null);
   const [selectedDateIso, setSelectedDateIso] = useState(null);
+  const [searchNameQuery, setSearchNameQuery] = useState('');
+  const [topicFilter, setTopicFilter] = useState('');
+
+  const topicColorMap = useMemo(() => {
+    const src = Array.isArray(appointmentTopics) ? appointmentTopics : [];
+    const map = new Map();
+    for (const t of src) {
+      const name =
+        typeof t === 'string' ? String(t).trim() : String(t?.name || '').trim();
+      if (!name) continue;
+      const color =
+        typeof t === 'object' && t ? String(t?.color || '').trim() : '';
+      if (!color) continue;
+      map.set(name.toLowerCase(), color);
+    }
+    return map;
+  }, [appointmentTopics]);
+
+  const getApptTopicBlockStyle = (appt) => {
+    const service = safeTrim(appt?.service) || safeTrim(appt?.subject);
+    if (!service) return null;
+    const base = topicColorMap.get(service.toLowerCase()) || '';
+    if (!base) return null;
+
+    const statusKey = getAppointmentStatusKey(appt);
+    const bgAlpha = topicBlockAlphaByStatus(statusKey);
+    const left = statusKey === 'attended' ? base : withAlpha(base, 0.3);
+
+    return {
+      borderLeft: `6px solid ${left}`,
+      backgroundColor: withAlpha(base, bgAlpha),
+      borderColor: withAlpha(base, Math.min(1, bgAlpha + 0.18)),
+    };
+  };
+
+  const topicOptions = useMemo(() => {
+    const src = Array.isArray(appointmentTopics) ? appointmentTopics : [];
+    const out = [];
+    const seen = new Set();
+    for (const t of src) {
+      const name =
+        typeof t === 'string' ? String(t).trim() : String(t?.name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+    }
+    return out;
+  }, [appointmentTopics]);
+
+  // If the chosen topic disappears (e.g. edited in settings), fall back to "ทั้งหมด".
+  useEffect(() => {
+    if (!topicFilter) return;
+    const ok = topicOptions.some(
+      (x) =>
+        String(x || '')
+          .trim()
+          .toLowerCase() === topicFilter.toLowerCase()
+    );
+    if (!ok) setTopicFilter('');
+  }, [topicFilter, topicOptions]);
 
   const today = new Date();
   const todayIso = toIsoDateLocal(today);
@@ -399,10 +493,39 @@ export default function AppointmentCalendar({
     };
   }, [anchorDate, view]);
 
-  const list = useMemo(
+  const baseList = useMemo(
     () => (Array.isArray(appointments) ? appointments : []),
     [appointments]
   );
+
+  const list = useMemo(() => {
+    const q = String(searchNameQuery || '')
+      .trim()
+      .toLowerCase();
+    const topicKey = String(topicFilter || '')
+      .trim()
+      .toLowerCase();
+    if (!q && !topicKey) return baseList;
+
+    return baseList.filter((appt) => {
+      if (!appt || typeof appt !== 'object') return false;
+
+      if (q) {
+        const name = String(getTitle(appt) || '')
+          .trim()
+          .toLowerCase();
+        if (!name.includes(q)) return false;
+      }
+
+      if (topicKey) {
+        const service = safeTrim(appt?.service) || safeTrim(appt?.subject);
+        if (!service) return false;
+        if (service.toLowerCase() !== topicKey) return false;
+      }
+
+      return true;
+    });
+  }, [baseList, searchNameQuery, topicFilter]);
 
   const slots = useMemo(() => {
     if (view === 'day' || view === 'week') {
@@ -410,22 +533,6 @@ export default function AppointmentCalendar({
     }
     return buildTimeSlots({ startHour: 8, endHour: 20, stepMinutes: 30 });
   }, [view]);
-
-  const byDayTime = useMemo(() => {
-    if (view === 'month') return new Map();
-    const map = new Map();
-    for (const appt of list) {
-      const dateIso = safeTrim(appt?.date);
-      const timeHHMM = getStartTime(appt);
-      const slotTime = snapTimeToStep(timeHHMM, 30);
-      if (!dateIso || !slotTime) continue;
-
-      const key = `${dateIso}__${slotTime}`;
-      const prev = map.get(key) || [];
-      map.set(key, [...prev, appt]);
-    }
-    return map;
-  }, [list, view]);
 
   const byDateAnyView = useMemo(() => {
     if (view === 'month') return new Map();
@@ -507,7 +614,6 @@ export default function AppointmentCalendar({
   };
 
   const clearSelection = () => {
-    setSelectedCellKey(null);
     setSelectedDateIso(null);
   };
 
@@ -521,56 +627,97 @@ export default function AppointmentCalendar({
               {viewLabel} • {rangeLabel}
             </div>
           </div>
-          <div className="appt-cal__controls">
-            <label className="appt-cal__view">
-              มุมมอง
-              <select
-                value={view}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setView(next);
-                  // Default to today in every view so users always land on "today"
-                  // after switching views (and newly created appointments are visible).
-                  setAnchorDate(() => {
-                    const base = startOfDay(new Date());
-                    if (next === 'month') return startOfMonth(base);
-                    if (next === 'week') return startOfWeekMonday(base);
-                    return base;
-                  });
-                  clearSelection();
-                }}
-                aria-label="เลือกมุมมองปฏิทิน"
-              >
-                <option value="day">รายวัน</option>
-                <option value="week">รายสัปดาห์</option>
-                <option value="month">รายเดือน</option>
-              </select>
-            </label>
+          <div className="appt-cal__controls-wrap">
+            <div className="appt-cal__controls">
+              <label className="appt-cal__view">
+                มุมมอง
+                <select
+                  value={view}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setView(next);
+                    // Default to today in every view so users always land on "today"
+                    // after switching views (and newly created appointments are visible).
+                    setAnchorDate(() => {
+                      const base = startOfDay(new Date());
+                      if (next === 'month') return startOfMonth(base);
+                      if (next === 'week') return startOfWeekMonday(base);
+                      return base;
+                    });
+                    clearSelection();
+                  }}
+                  aria-label="เลือกมุมมองปฏิทิน"
+                >
+                  <option value="day">รายวัน</option>
+                  <option value="week">รายสัปดาห์</option>
+                  <option value="month">รายเดือน</option>
+                </select>
+              </label>
 
-            <div className="appt-cal__nav" aria-label="เลื่อนปฏิทิน">
-              <button type="button" className="button" onClick={handlePrev}>
-                ก่อนหน้า
+              <div className="appt-cal__nav" aria-label="เลื่อนปฏิทิน">
+                <button type="button" className="button" onClick={handlePrev}>
+                  ก่อนหน้า
+                </button>
+                <button type="button" className="button" onClick={handleToday}>
+                  วันนี้
+                </button>
+                <button type="button" className="button" onClick={handleNext}>
+                  ถัดไป
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  if (typeof onAppointmentTopics === 'function') {
+                    onAppointmentTopics();
+                  }
+                }}
+                aria-label="หัวข้อนัดหมาย"
+              >
+                หัวข้อนัดหมาย
               </button>
-              <button type="button" className="button" onClick={handleToday}>
-                วันนี้
-              </button>
-              <button type="button" className="button" onClick={handleNext}>
-                ถัดไป
+
+              <button
+                type="button"
+                className="appt-cal__legend-item appt-cal__cta"
+                onClick={() => {
+                  if (typeof onCreateAppointment === 'function') {
+                    onCreateAppointment();
+                  }
+                }}
+                aria-label="สร้างนัดหมาย"
+              >
+                สร้างนัดหมาย
               </button>
             </div>
 
-            <button
-              type="button"
-              className="appt-cal__legend-item appt-cal__cta"
-              onClick={() => {
-                if (typeof onCreateAppointment === 'function') {
-                  onCreateAppointment();
-                }
-              }}
-              aria-label="สร้างนัดหมาย"
-            >
-              สร้างนัดหมาย
-            </button>
+            <div className="appt-cal__searchrow" aria-label="ค้นหาและตัวกรอง">
+              <input
+                className="input"
+                value={searchNameQuery}
+                onChange={(e) => setSearchNameQuery(e.target.value)}
+                placeholder="ค้นหา"
+                aria-label="ค้นหาจากชื่อ"
+                style={{ width: 240, maxWidth: '70vw' }}
+              />
+
+              <select
+                className="input"
+                value={topicFilter}
+                onChange={(e) => setTopicFilter(e.target.value)}
+                aria-label="กรองหัวข้อนัดหมาย"
+                style={{ width: 240, maxWidth: '70vw' }}
+              >
+                <option value="">แสดงทั้งหมด</option>
+                {topicOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -605,7 +752,6 @@ export default function AppointmentCalendar({
                 tabIndex={0}
                 onClick={() => {
                   setSelectedDateIso(d.iso);
-                  setSelectedCellKey(null);
                 }}
               >
                 <div className="appt-cal__month-date">{d.day}</div>
@@ -617,7 +763,7 @@ export default function AppointmentCalendar({
                           a?.id ||
                             `${a?.date}-${getStartTime(a)}-${getTitle(a)}`
                         )}
-                        className="appt-cal__month-event"
+                        className={`appt-cal__month-event${getAppointmentStatusClass(a)}`}
                         title={`${formatTimeRange(a)} ${getTitle(a)} ${getService(a)}`.trim()}
                         role={
                           typeof onEditAppointment === 'function'
@@ -629,6 +775,7 @@ export default function AppointmentCalendar({
                             ? 0
                             : undefined
                         }
+                        style={getApptTopicBlockStyle(a) || undefined}
                         onClick={(e) => {
                           if (typeof onEditAppointment !== 'function') return;
                           e.stopPropagation();
@@ -705,7 +852,6 @@ export default function AppointmentCalendar({
                 aria-label={d.label}
                 onClick={() => {
                   setSelectedDateIso(null);
-                  setSelectedCellKey(null);
                 }}
               >
                 {items.map(({ appt, startMin, endMin, col, cols }) => {
@@ -725,7 +871,7 @@ export default function AppointmentCalendar({
                         appt?.id ||
                           `${appt?.date}-${getStartTime(appt)}-${getTitle(appt)}`
                       )}
-                      className={`appt-cal__event-block${isDayView ? ' appt-cal__event-block--day' : ''}${isTiny ? ' appt-cal__event-block--tiny' : isShort ? ' appt-cal__event-block--short' : ''}`}
+                      className={`appt-cal__event-block${getAppointmentStatusClass(appt)}${isDayView ? ' appt-cal__event-block--day' : ''}${isTiny ? ' appt-cal__event-block--tiny' : isShort ? ' appt-cal__event-block--short' : ''}`}
                       title={title}
                       role={
                         typeof onEditAppointment === 'function'
@@ -740,6 +886,7 @@ export default function AppointmentCalendar({
                         height: `calc((var(--appt-slot-h) / 30) * ${duration})`,
                         left: `calc(${leftPct}% + 2px)`,
                         width: `calc(${widthPct}% - 4px)`,
+                        ...(getApptTopicBlockStyle(appt) || {}),
                       }}
                       onClick={(e) => {
                         if (typeof onEditAppointment !== 'function') return;
