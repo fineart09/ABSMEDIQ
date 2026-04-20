@@ -35,6 +35,8 @@ export default function EditProduct({
   onSave,
   initial,
   title = 'แก้ไขรายละเอียดสินค้า',
+  categoryOptions = CATEGORY_OPTIONS,
+  unitOptions = UNIT_OPTIONS,
 }) {
   const initialForm = useMemo(() => {
     if (!initial) {
@@ -216,12 +218,12 @@ export default function EditProduct({
                 style={{ width: '100%' }}
               >
                 <option value="">-</option>
-                {CATEGORY_OPTIONS.map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
-                {form.category && !CATEGORY_OPTIONS.includes(form.category) ? (
+                {form.category && !categoryOptions.includes(form.category) ? (
                   <option value={form.category}>{form.category}</option>
                 ) : null}
               </select>
@@ -271,12 +273,12 @@ export default function EditProduct({
                   style={{ width: '100%' }}
                 >
                   <option value="">-</option>
-                  {UNIT_OPTIONS.map((u) => (
+                  {unitOptions.map((u) => (
                     <option key={u} value={u}>
                       {u}
                     </option>
                   ))}
-                  {form.unit && !UNIT_OPTIONS.includes(form.unit) ? (
+                  {form.unit && !unitOptions.includes(form.unit) ? (
                     <option value={form.unit}>{form.unit}</option>
                   ) : null}
                 </select>

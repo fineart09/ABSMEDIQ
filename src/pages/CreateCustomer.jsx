@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MOCK_CUSTOMERS_FULL } from '../mocks/customersFull';
+import {
+  getEmptyThaiAddressData,
+  loadThaiAddressData,
+} from '../utils/thAddressData';
 
 export default function CreateCustomer({
   onCancel,
@@ -173,60 +177,86 @@ export default function CreateCustomer({
   const [errors, setErrors] = useState({});
 
   // Load Thailand address database for cascading selects
-  const [thDb, setThDb] = useState([]);
+  const [thAddressData, setThAddressData] = useState(getEmptyThaiAddressData);
+  const [isAddressDataLoading, setIsAddressDataLoading] = useState(true);
+  const [addressDataError, setAddressDataError] = useState('');
   useEffect(() => {
     let alive = true;
-    fetch(
-      'https://cdn.jsdelivr.net/npm/jquery.thailand.js@2.0.5/dist/database/db.json'
-    )
-      .then((r) => r.json())
+    setIsAddressDataLoading(true);
+    loadThaiAddressData()
       .then((data) => {
         if (!alive) return;
-        setThDb(Array.isArray(data) ? data : []);
+        setThAddressData(data);
+        setAddressDataError('');
       })
       .catch(() => {
-        setThDb([]);
+        if (!alive) return;
+        setThAddressData(getEmptyThaiAddressData());
+        setAddressDataError('ไม่สามารถโหลดข้อมูลที่อยู่ได้');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setIsAddressDataLoading(false);
       });
     return () => {
       alive = false;
     };
   }, []);
 
+  const selectedProvinceId = useMemo(() => {
+    if (!form.provinceTh) return null;
+    const match = thAddressData.provinces.find(
+      (p) => p.name_th === form.provinceTh
+    );
+    return match?.id ?? null;
+  }, [thAddressData.provinces, form.provinceTh]);
+
+  const selectedDistrictId = useMemo(() => {
+    if (!selectedProvinceId || !form.districtTh) return null;
+    const match = thAddressData.districts.find(
+      (d) =>
+        d.province_id === selectedProvinceId && d.name_th === form.districtTh
+    );
+    return match?.id ?? null;
+  }, [thAddressData.districts, selectedProvinceId, form.districtTh]);
+
   const provinces = useMemo(() => {
-    if (!thDb.length) return [];
-    const set = new Set();
-    thDb.forEach((r) => set.add(r.province));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [thDb]);
+    return [...thAddressData.provinces]
+      .sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'))
+      .map((p) => p.name_th);
+  }, [thAddressData.provinces]);
 
   const amphoes = useMemo(() => {
-    if (!form.provinceTh) return [];
-    const set = new Set();
-    thDb.forEach((r) => {
-      if (r.province === form.provinceTh) set.add(r.amphoe);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [thDb, form.provinceTh]);
+    if (!selectedProvinceId) return [];
+    return thAddressData.districts
+      .filter((d) => d.province_id === selectedProvinceId)
+      .sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'))
+      .map((d) => d.name_th);
+  }, [thAddressData.districts, selectedProvinceId]);
 
   const districts = useMemo(() => {
-    if (!form.provinceTh || !form.districtTh) return [];
-    const set = new Set();
-    thDb.forEach((r) => {
-      if (r.province === form.provinceTh && r.amphoe === form.districtTh) {
-        set.add(r.district);
-      }
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [thDb, form.provinceTh, form.districtTh]);
+    if (!selectedDistrictId) return [];
+    return thAddressData.subDistricts
+      .filter((s) => s.district_id === selectedDistrictId)
+      .sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'))
+      .map((s) => s.name_th);
+  }, [thAddressData.subDistricts, selectedDistrictId]);
 
   const zipcodeFor = (province, amphoe, district) => {
-    const rec = thDb.find(
-      (r) =>
-        r.province === province &&
-        r.amphoe === amphoe &&
-        r.district === district
+    const provinceRec = thAddressData.provinces.find(
+      (p) => p.name_th === province
     );
-    return rec?.zipcode || '';
+    if (!provinceRec) return '';
+
+    const districtRec = thAddressData.districts.find(
+      (d) => d.province_id === provinceRec.id && d.name_th === amphoe
+    );
+    if (!districtRec) return '';
+
+    const subDistrictRec = thAddressData.subDistricts.find(
+      (s) => s.district_id === districtRec.id && s.name_th === district
+    );
+    return subDistrictRec?.zip_code ? String(subDistrictRec.zip_code) : '';
   };
 
   const update = (field) => (e) => {
@@ -463,14 +493,24 @@ export default function CreateCustomer({
                   value={form.provinceTh}
                   onChange={onProvinceSelect}
                   className="select"
+                  disabled={isAddressDataLoading}
                 >
-                  <option value="">-- เลือกจังหวัด --</option>
+                  <option value="">
+                    {isAddressDataLoading
+                      ? '-- กำลังโหลดข้อมูลจังหวัด --'
+                      : '-- เลือกจังหวัด --'}
+                  </option>
                   {provinces.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
                   ))}
                 </select>
+                {addressDataError ? (
+                  <div role="alert" className="field-error">
+                    {addressDataError}
+                  </div>
+                ) : null}
                 {errors.provinceTh ? (
                   <div role="alert" className="field-error">
                     {errors.provinceTh}
@@ -523,7 +563,9 @@ export default function CreateCustomer({
                   value={form.districtTh}
                   onChange={onDistrictSelect}
                   className="select"
-                  disabled={!form.provinceTh}
+                  disabled={
+                    isAddressDataLoading || !form.provinceTh || !amphoes.length
+                  }
                 >
                   <option value="">-- เลือกอำเภอ --</option>
                   {amphoes.map((a) => (
@@ -545,7 +587,12 @@ export default function CreateCustomer({
                   value={form.subdistrictTh}
                   onChange={onSubdistrictSelect}
                   className="select"
-                  disabled={!form.provinceTh || !form.districtTh}
+                  disabled={
+                    isAddressDataLoading ||
+                    !form.provinceTh ||
+                    !form.districtTh ||
+                    !districts.length
+                  }
                 >
                   <option value="">-- เลือกตำบล --</option>
                   {districts.map((d) => (

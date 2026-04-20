@@ -125,6 +125,7 @@ export default function Products({
   products,
   onEdit,
   onCreateNew,
+  onIssueStock,
   onPurchase,
   onViewIngredients,
   onReceiveStock,
@@ -238,6 +239,13 @@ export default function Products({
         >
           <h1 className="page-title">รายการสินค้า</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="button button--orange"
+              onClick={() => (onIssueStock || onViewMovements)?.()}
+            >
+              เบิกสินค้า
+            </button>
             <button
               type="button"
               className="button button--blue"

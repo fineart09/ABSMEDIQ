@@ -305,7 +305,7 @@ export default function ConsumableMovements({
         >
           <input
             aria-label="ค้นหารายการเคลื่อนไหววัสดุสิ้นเปลือง"
-            placeholder="ค้นหารหัส / ชื่อวัสดุ / เลข lot / ประเภท / PO"
+            placeholder="ค้นหารหัส / ชื่อวัสดุ / เลข lot / ประเภท / เลขที่อ้างอิง"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1, padding: '8px 10px' }}
@@ -316,13 +316,14 @@ export default function ConsumableMovements({
         </div>
       </div>
 
-      <div className="table-card" style={{ overflowX: 'hidden' }}>
+      <div className="table-card" style={{ overflowX: 'auto' }}>
         <table
           className="customers-table"
           style={{
             width: '100%',
+            minWidth: 1080,
             borderCollapse: 'collapse',
-            tableLayout: 'fixed',
+            tableLayout: 'auto',
             fontSize: 12,
             lineHeight: 1.25,
           }}
@@ -335,18 +336,21 @@ export default function ConsumableMovements({
               <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
                 รหัส
               </th>
-              <th style={{ padding: 6, width: 220 }}>ชื่อวัสดุ</th>
+              <th style={{ padding: 6, width: 200 }}>ชื่อวัสดุ</th>
               <th style={{ padding: 6, width: 55, textAlign: 'right' }}>
                 จำนวน
               </th>
               <th style={{ padding: 6, width: 55, whiteSpace: 'nowrap' }}>
                 หน่วย
               </th>
-              <th style={{ padding: 6, width: 140, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: 6, width: 120, whiteSpace: 'nowrap' }}>
                 เลข lot
               </th>
               <th style={{ padding: 6, width: 85, whiteSpace: 'nowrap' }}>
                 วันหมดอายุ
+              </th>
+              <th style={{ padding: 6, width: 110, whiteSpace: 'nowrap' }}>
+                เลขที่บิลอ้างอิง
               </th>
               <th style={{ padding: 6, width: 90, textAlign: 'right' }}>
                 ต้นทุนต่อหน่วย
@@ -403,6 +407,12 @@ export default function ConsumableMovements({
                   </td>
                   <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
                     {formatDateDMY(r.expiryDate)}
+                  </td>
+                  <td
+                    style={{ padding: 6, whiteSpace: 'nowrap' }}
+                    title={String(r.ref || '-').trim() || '-'}
+                  >
+                    {String(r.ref || '-').trim() || '-'}
                   </td>
                   <td style={{ padding: 6 }}>
                     <input
@@ -475,7 +485,7 @@ export default function ConsumableMovements({
               ))
             ) : (
               <tr>
-                <td style={{ padding: 12, color: '#6b7280' }} colSpan={10}>
+                <td style={{ padding: 12, color: '#6b7280' }} colSpan={11}>
                   ยังไม่มีรายการเคลื่อนไหววัสดุสิ้นเปลือง
                 </td>
               </tr>

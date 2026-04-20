@@ -14,6 +14,7 @@ import Suppliers from './pages/Suppliers.jsx';
 import CreateSupplier from './pages/CreateSupplier.jsx';
 import ReceiveStock from './pages/ReceiveStock.jsx';
 import ProductMovements from './pages/ProductMovements.jsx';
+import IssueProducts from './pages/IssueProducts.jsx';
 import Consumables from './pages/Consumables.jsx';
 import ReceiveConsumablesStock from './pages/ReceiveConsumablesStock.jsx';
 import Ingredients from './pages/Ingredients.jsx';
@@ -421,6 +422,7 @@ function TreatmentRecordModal({
   open,
   customers,
   products,
+  consumables,
   customerQuery,
   onCustomerQueryChange,
   selectedCustomer,
@@ -477,7 +479,18 @@ function TreatmentRecordModal({
 
   const hasProductQuery = !!productQ;
   const productResults = hasProductQuery
-    ? (Array.isArray(products) ? products : [])
+    ? [
+        ...(Array.isArray(products) ? products : []).map((p) => ({
+          ...p,
+          itemType: 'product',
+          itemTypeLabel: 'สินค้า',
+        })),
+        ...(Array.isArray(consumables) ? consumables : []).map((c) => ({
+          ...c,
+          itemType: 'consumable',
+          itemTypeLabel: 'วัสดุสิ้นเปลือง',
+        })),
+      ]
         .filter((p) => p && typeof p === 'object')
         .filter((p) => String(p?.status || '').trim() !== 'ไม่ใช้งาน')
         .filter((p) => {
@@ -489,6 +502,12 @@ function TreatmentRecordModal({
             th.includes(productQ) ||
             en.includes(productQ)
           );
+        })
+        .sort((a, b) => {
+          const aType = String(a?.itemType || '');
+          const bType = String(b?.itemType || '');
+          if (aType !== bType) return aType.localeCompare(bType);
+          return String(a?.code || '').localeCompare(String(b?.code || ''));
         })
         .slice(0, 3)
     : [];
@@ -642,12 +661,18 @@ function TreatmentRecordModal({
             </div>
 
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                เพิ่มสินค้าเข้ารายการ
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 6,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                เพิ่มสินค้า/วัสดุสิ้นเปลืองเข้ารายการ
               </div>
               <input
                 className="input"
-                placeholder="ค้นหารหัสสินค้า หรือชื่อสินค้า"
+                placeholder="ค้นหารหัส หรือชื่อสินค้า/วัสดุสิ้นเปลือง"
                 value={productQuery}
                 onChange={(e) => onProductQueryChange(e.target.value)}
               />
@@ -666,7 +691,9 @@ function TreatmentRecordModal({
                   <thead>
                     <tr>
                       <th style={{ width: 110 }}>รหัส</th>
-                      <th>สินค้า</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>
+                        สินค้า/วัสดุสิ้นเปลือง
+                      </th>
                       <th style={{ width: 110, textAlign: 'right' }}>ราคา</th>
                       <th style={{ width: 110 }}></th>
                     </tr>
@@ -689,9 +716,14 @@ function TreatmentRecordModal({
                               <td style={{ height: 34 }}>
                                 {String(p?.code || '-')}
                               </td>
-                              <td>{String(p?.nameTh || p?.nameEn || '-')}</td>
+                              <td>
+                                {String(p?.nameTh || p?.nameEn || '-')} (
+                                {String(p?.itemTypeLabel || 'สินค้า')})
+                              </td>
                               <td style={{ textAlign: 'right' }}>
-                                {Number(p?.price || 0).toLocaleString('th-TH')}
+                                {Number(
+                                  p?.price ?? p?.cost ?? 0
+                                ).toLocaleString('th-TH')}
                               </td>
                               <td style={{ textAlign: 'right' }}>
                                 <button
@@ -854,6 +886,8 @@ function TreatmentRecordDetailModal({
   customers,
   customerConditions,
   products,
+  consumables,
+  drugIndications,
   onClose,
   onSave,
 }) {
@@ -865,16 +899,21 @@ function TreatmentRecordDetailModal({
     const items = Array.isArray(record?.items) ? record.items : [];
     setDraftItems(
       items.map((row) => ({
+        itemType: String(row?.itemType || '').trim(),
         code: String(row?.code || '').trim(),
         name: String(row?.name || '').trim(),
         price: Number(row?.price) || 0,
         qty: Number(row?.qty) || 1,
+        indication: String(row?.indication || '').trim(),
       }))
     );
     setProductQuery('');
   }, [open, record]);
 
   if (!open || !record) return null;
+
+  const isAwaitingPayment =
+    String(record?.status || '').trim() === 'รอชำระเงิน';
 
   const hn = String(record?.customer?.hn || '').trim();
   const customerRow = (Array.isArray(customers) ? customers : []).find(
@@ -911,6 +950,7 @@ function TreatmentRecordDetailModal({
   }, 0);
 
   const updateQty = (code, nextQtyRaw) => {
+    if (isAwaitingPayment) return;
     const key = String(code || '').trim();
     if (!key) return;
     const qtyNum = Number(nextQtyRaw);
@@ -922,7 +962,20 @@ function TreatmentRecordDetailModal({
     );
   };
 
+  const updateIndication = (code, nextIndicationRaw) => {
+    if (isAwaitingPayment) return;
+    const key = String(code || '').trim();
+    if (!key) return;
+    const indication = String(nextIndicationRaw || '').trim();
+    setDraftItems((prev) =>
+      (Array.isArray(prev) ? prev : []).map((row) =>
+        String(row?.code || '').trim() === key ? { ...row, indication } : row
+      )
+    );
+  };
+
   const removeItem = (code) => {
+    if (isAwaitingPayment) return;
     const key = String(code || '').trim();
     if (!key) return;
     setDraftItems((prev) =>
@@ -937,7 +990,18 @@ function TreatmentRecordDetailModal({
     .toLowerCase();
   const hasProductQuery = !!productQ;
   const productResults = hasProductQuery
-    ? (Array.isArray(products) ? products : [])
+    ? [
+        ...(Array.isArray(products) ? products : []).map((p) => ({
+          ...p,
+          itemType: 'product',
+          itemTypeLabel: 'สินค้า',
+        })),
+        ...(Array.isArray(consumables) ? consumables : []).map((c) => ({
+          ...c,
+          itemType: 'consumable',
+          itemTypeLabel: 'วัสดุสิ้นเปลือง',
+        })),
+      ]
         .filter((p) => p && typeof p === 'object')
         .filter((p) => String(p?.status || '').trim() !== 'ไม่ใช้งาน')
         .filter((p) => {
@@ -950,14 +1014,22 @@ function TreatmentRecordDetailModal({
             en.includes(productQ)
           );
         })
+        .sort((a, b) => {
+          const aType = String(a?.itemType || '');
+          const bType = String(b?.itemType || '');
+          if (aType !== bType) return aType.localeCompare(bType);
+          return String(a?.code || '').localeCompare(String(b?.code || ''));
+        })
         .slice(0, 3)
     : [];
 
   const addProduct = (p) => {
+    if (isAwaitingPayment) return;
+    const itemType = String(p?.itemType || '').trim();
     const code = String(p?.code || '').trim();
     if (!code) return;
     const name = String(p?.nameTh || p?.nameEn || '').trim() || code;
-    const priceNum = Number(p?.price);
+    const priceNum = Number(p?.price ?? p?.cost);
     const price = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : 0;
 
     setDraftItems((prev) => {
@@ -971,9 +1043,17 @@ function TreatmentRecordDetailModal({
         next[idx] = { ...next[idx], qty: nextQty };
         return next;
       }
-      return [...src, { code, name, price, qty: 1 }];
+      return [...src, { itemType, code, name, price, qty: 1 }];
     });
   };
+
+  const indicationOptions = Array.from(
+    new Set(
+      (Array.isArray(drugIndications) ? drugIndications : [])
+        .map((row) => String(row?.text || '').trim())
+        .filter(Boolean)
+    )
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1046,14 +1126,15 @@ function TreatmentRecordDetailModal({
             </div>
           </div>
 
-          <div style={{ fontWeight: 800, marginTop: 6 }}>
-            เพิ่มสินค้าเข้ารายการ
+          <div style={{ fontWeight: 800, marginTop: 6, whiteSpace: 'nowrap' }}>
+            เพิ่มสินค้า/วัสดุสิ้นเปลืองเข้ารายการ
           </div>
           <input
             className="input"
-            placeholder="ค้นหารหัสสินค้า หรือชื่อสินค้า"
+            placeholder="ค้นหารหัส หรือชื่อสินค้า/วัสดุสิ้นเปลือง"
             value={productQuery}
             onChange={(e) => setProductQuery(e.target.value)}
+            disabled={isAwaitingPayment}
           />
           <div
             className="table-card"
@@ -1066,7 +1147,9 @@ function TreatmentRecordDetailModal({
               <thead>
                 <tr>
                   <th style={{ width: 110 }}>รหัส</th>
-                  <th>สินค้า</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>
+                    สินค้า/วัสดุสิ้นเปลือง
+                  </th>
                   <th style={{ width: 110, textAlign: 'right' }}>ราคา</th>
                   <th style={{ width: 110 }}></th>
                 </tr>
@@ -1089,15 +1172,21 @@ function TreatmentRecordDetailModal({
                           <td style={{ height: 34 }}>
                             {String(p?.code || '-')}
                           </td>
-                          <td>{String(p?.nameTh || p?.nameEn || '-')}</td>
+                          <td>
+                            {String(p?.nameTh || p?.nameEn || '-')} (
+                            {String(p?.itemTypeLabel || 'สินค้า')})
+                          </td>
                           <td style={{ textAlign: 'right' }}>
-                            {Number(p?.price || 0).toLocaleString('th-TH')}
+                            {Number(p?.price ?? p?.cost ?? 0).toLocaleString(
+                              'th-TH'
+                            )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <button
                               type="button"
                               className="button button--blue"
                               onClick={() => addProduct(p)}
+                              disabled={isAwaitingPayment}
                             >
                               เพิ่ม
                             </button>
@@ -1147,10 +1236,11 @@ function TreatmentRecordDetailModal({
                 <tr>
                   <th style={{ width: 110 }}>รหัส</th>
                   <th>สินค้า</th>
+                  <th style={{ width: 260 }}>ข้อบ่งใช้</th>
                   <th style={{ width: 120, textAlign: 'right' }}>ราคา</th>
                   <th style={{ width: 120 }}>จำนวน</th>
                   <th style={{ width: 130, textAlign: 'right' }}>รวม</th>
-                  <th style={{ width: 90 }}></th>
+                  <th style={{ width: 120 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -1166,6 +1256,25 @@ function TreatmentRecordDetailModal({
                       <tr key={String(row?.code || '')}>
                         <td>{String(row?.code || '-')}</td>
                         <td>{String(row?.name || '-')}</td>
+                        <td>
+                          <select
+                            id={`indication-${String(row?.code || '')}`}
+                            className="select"
+                            value={String(row?.indication || '')}
+                            onChange={(e) =>
+                              updateIndication(row?.code, e.target.value)
+                            }
+                            disabled={isAwaitingPayment}
+                            style={{ width: '100%' }}
+                          >
+                            <option value="">- เลือกข้อบ่งใช้ -</option>
+                            {indicationOptions.map((text) => (
+                              <option key={text} value={text}>
+                                {text}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           {Number(price || 0).toLocaleString('th-TH')}
                         </td>
@@ -1180,6 +1289,7 @@ function TreatmentRecordDetailModal({
                               updateQty(row?.code, e.target.value)
                             }
                             style={{ width: '100%' }}
+                            disabled={isAwaitingPayment}
                           />
                         </td>
                         <td
@@ -1192,8 +1302,12 @@ function TreatmentRecordDetailModal({
                             type="button"
                             className="button"
                             onClick={() => removeItem(row?.code)}
+                            disabled={isAwaitingPayment}
+                            title="ลบรายการ"
+                            aria-label="ลบรายการ"
+                            style={{ padding: '4px 6px', minWidth: 0 }}
                           >
-                            ลบ
+                            ✕
                           </button>
                         </td>
                       </tr>
@@ -1202,7 +1316,7 @@ function TreatmentRecordDetailModal({
                 ) : (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       style={{ textAlign: 'center', color: '#6b7280' }}
                     >
                       ไม่มีรายการสินค้า
@@ -1226,6 +1340,11 @@ function TreatmentRecordDetailModal({
             <div className="treatment-detail-actions__total">
               รวมทั้งหมด: {Number(subtotal || 0).toLocaleString('th-TH')} บาท
             </div>
+            {isAwaitingPayment ? (
+              <div style={{ color: '#6b7280', fontSize: 12 }}>
+                สถานะรอชำระเงิน: ไม่สามารถแก้ไขรายการสินค้าในบิลได้
+              </div>
+            ) : null}
             <button type="button" className="button" onClick={onClose}>
               ปิด
             </button>
@@ -1233,7 +1352,7 @@ function TreatmentRecordDetailModal({
               type="button"
               className="button button--blue"
               onClick={() => onSave?.({ id: record?.id, items: draftItems })}
-              disabled={!draftItems.length}
+              disabled={isAwaitingPayment || !draftItems.length}
             >
               บันทึกการแก้ไข
             </button>
@@ -1611,6 +1730,41 @@ export default function App() {
       });
     });
   };
+
+  function resolveTreatmentStatusFromItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    const hasApproved = list.some(
+      (it) =>
+        String(it?.issueStatus || '')
+          .trim()
+          .toLowerCase() === 'approved'
+    );
+    return hasApproved ? 'รอชำระเงิน' : 'รอเบิกสินค้า';
+  }
+
+  function buildDraftRefNo(records, atDate) {
+    const now = atDate instanceof Date ? atDate : new Date();
+    const year = String(now.getFullYear());
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyymm = `${year}${month}`;
+    const pattern = new RegExp(`^DRAFT${yyyymm}(\\d{4})$`);
+
+    let maxRunning = 0;
+    const list = Array.isArray(records) ? records : [];
+    list.forEach((r) => {
+      const ref = String(r?.refNo || '').trim();
+      const m = pattern.exec(ref);
+      if (!m) return;
+      const running = Number(m[1]);
+      if (Number.isFinite(running)) {
+        maxRunning = Math.max(maxRunning, running);
+      }
+    });
+
+    const nextRunning = String(maxRunning + 1).padStart(4, '0');
+    return `DRAFT${yyyymm}${nextRunning}`;
+  }
+
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
   const [treatmentCustomerQuery, setTreatmentCustomerQuery] = useState('');
   const [treatmentSelectedCustomer, setTreatmentSelectedCustomer] =
@@ -1648,12 +1802,15 @@ export default function App() {
             .slice(0, 10)
             .replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
         type: 'treatment',
-        status: 'รอชำระเงิน',
+        status: resolveTreatmentStatusFromItems(safeItems),
         createdAt,
         createdBy: String(createdBy || '').trim() || 'ระบบ',
         customer,
         items: safeItems,
         subtotal,
+        issueStatus: 'pending',
+        issuedAt: '',
+        issuedBy: '',
       };
     };
 
@@ -1691,6 +1848,7 @@ export default function App() {
   const [treatmentDetailRow, setTreatmentDetailRow] = useState(null);
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
+  const [productIssueMovements, setProductIssueMovements] = useState([]);
   const [consumableMovementFilterCode, setConsumableMovementFilterCode] =
     useState(null);
   const [ingredientMovementFilterCode, setIngredientMovementFilterCode] =
@@ -1730,6 +1888,87 @@ export default function App() {
   const [purchaseOrders, setPurchaseOrders] = useState(() =>
     Array.isArray(MOCK_PURCHASE_ORDERS_FULL) ? MOCK_PURCHASE_ORDERS_FULL : []
   );
+  const [drugIndications, setDrugIndications] = useState(() => [
+    {
+      id: 'ind_1',
+      text: 'ครั้งละ 1 เม็ด ทานช่วงเช้าตอนท้องว่าง ดื่มน้ำให้น้อยที่สุด ทานก่อนวิตามินตัวอื่นและอาหาร 1 ชม',
+    },
+    { id: 'ind_2', text: 'ทานสัปดาห์ละ 1 ครั้ง หลังอาหารเช้า' },
+    { id: 'ind_3', text: 'ครั้งละ 1 เม็ด หลังอาหารเช้า' },
+    { id: 'ind_4', text: 'ครั้งละ 1 เม็ด ก่อนนอน' },
+    { id: 'ind_5', text: 'ครั้งละ 1 เม็ด ก่อนอาหารเช้า' },
+    { id: 'ind_6', text: 'ครั้งละ 1 เม็ด หลังอาหารเช้า และเย็น' },
+    { id: 'ind_7', text: 'ฉีดสัปดาห์ละ 1 ครั้ง' },
+    { id: 'ind_8', text: 'For IV drip' },
+    { id: 'ind_9', text: 'For IV push' },
+    { id: 'ind_10', text: 'inj M' },
+    { id: 'ind_11', text: 'inj SC' },
+    { id: 'ind_12', text: 'ทานครั้งละ 1 เม็ด พร้อมอาหาร' },
+    { id: 'ind_13', text: 'ทานสัปดาห์ละ 1 ครั้ง' },
+    { id: 'ind_14', text: 'ฉีดช่วงบ่ายสัปดาห์ละ 1 ครั้ง' },
+    { id: 'ind_15', text: 'take 1 cap after dinner' },
+    { id: 'ind_16', text: 'ครั้งละ 1  เม็ด หลังอาหารเย็น' },
+  ]);
+  const [showDrugIndicationsPanel, setShowDrugIndicationsPanel] =
+    useState(false);
+  const [newIndicationText, setNewIndicationText] = useState('');
+  const [editingIndicationId, setEditingIndicationId] = useState('');
+  const [editingIndicationText, setEditingIndicationText] = useState('');
+  const [productUnits, setProductUnits] = useState(() => [
+    { id: 'unit_1', text: 'Cap' },
+    { id: 'unit_2', text: 'Amp' },
+    { id: 'unit_3', text: 'Tab' },
+    { id: 'unit_4', text: 'Box' },
+    { id: 'unit_5', text: 'Pack' },
+    { id: 'unit_6', text: 'Syringe' },
+    { id: 'unit_7', text: 'Vial' },
+    { id: 'unit_8', text: 'BTL' },
+    { id: 'unit_9', text: 'ML' },
+    { id: 'unit_10', text: 'packs' },
+    { id: 'unit_11', text: 'Pc' },
+    { id: 'unit_12', text: 'Test' },
+    { id: 'unit_13', text: 'Pen' },
+    { id: 'unit_14', text: 'Tube' },
+    { id: 'unit_15', text: 'Bag' },
+    { id: 'unit_16', text: 'Cap' },
+    { id: 'unit_17', text: 'Set' },
+    { id: 'unit_18', text: 'Pair' },
+    { id: 'unit_19', text: 'Shirt' },
+    { id: 'unit_20', text: 'Pant' },
+  ]);
+  const [showProductUnitsPanel, setShowProductUnitsPanel] = useState(false);
+  const [newProductUnitText, setNewProductUnitText] = useState('');
+  const [editingProductUnitId, setEditingProductUnitId] = useState('');
+  const [editingProductUnitText, setEditingProductUnitText] = useState('');
+  const [productCategories, setProductCategories] = useState(() => [
+    { id: 'cat_1', text: 'ยาเม็ด' },
+    { id: 'cat_2', text: 'ยาฉีด' },
+    { id: 'cat_3', text: 'ใช้ภายนอก(ยาทา)' },
+    { id: 'cat_4', text: 'ใช้ภายนอก(ยาทา)(ในตู้เย็น)' },
+    { id: 'cat_5', text: 'ยาผง' },
+    { id: 'cat_6', text: 'ยาฉีด(ในตู้เย็น)' },
+    { id: 'cat_7', text: 'โปรตีน' },
+    { id: 'cat_8', text: 'ยาน้ำ' },
+    { id: 'cat_9', text: 'ใช้ภายนอก(เข็ม)' },
+    { id: 'cat_10', text: 'อุปกรณ์อื่นๆ' },
+    { id: 'cat_11', text: 'ใช้ภายนอก(Serum)' },
+    { id: 'cat_12', text: 'อุปกรณ์ใช้ภายนอก' },
+    { id: 'cat_13', text: 'ใช้ภายนอก(Serum)(ในตู้เย็น)' },
+    { id: 'cat_14', text: 'ยาทา' },
+    { id: 'cat_15', text: 'อุปกรณ์ออกกำลังกาย' },
+    { id: 'cat_16', text: 'ใช้ภายนอก(ยาพ่น)' },
+    { id: 'cat_17', text: 'ใช้ภายนอก(ยาทาในตู้เย็น)' },
+    { id: 'cat_18', text: 'ใช้ภายนอก(ยาพ่น)(ในตู้เย็น)' },
+    { id: 'cat_19', text: 'ยาเม็ด(ในตู้เย็น)' },
+    { id: 'cat_20', text: 'ยาผง(ในตู้เย็น)' },
+    { id: 'cat_21', text: 'อุปกรณ์ห้องพยาบาล' },
+  ]);
+  const [showProductCategoriesPanel, setShowProductCategoriesPanel] =
+    useState(false);
+  const [newProductCategoryText, setNewProductCategoryText] = useState('');
+  const [editingProductCategoryId, setEditingProductCategoryId] = useState('');
+  const [editingProductCategoryText, setEditingProductCategoryText] =
+    useState('');
   const [customerStatusOverrides, setCustomerStatusOverrides] = useState({});
   const [customerConditions, setCustomerConditions] = useState({});
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -1754,10 +1993,11 @@ export default function App() {
   const closeTreatmentModal = () => setTreatmentModalOpen(false);
 
   const addTreatmentProduct = (p) => {
+    const itemType = String(p?.itemType || '').trim();
     const code = String(p?.code || '').trim();
     if (!code) return;
     const name = String(p?.nameTh || p?.nameEn || '').trim() || code;
-    const priceNum = Number(p?.price);
+    const priceNum = Number(p?.price ?? p?.cost);
     const price = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : 0;
 
     setTreatmentItems((prev) => {
@@ -1771,7 +2011,7 @@ export default function App() {
         next[idx] = { ...next[idx], qty: nextQty };
         return next;
       }
-      return [...src, { code, name, price, qty: 1 }];
+      return [...src, { itemType, code, name, price, qty: 1 }];
     });
   };
 
@@ -1819,26 +2059,33 @@ export default function App() {
       return acc + line;
     }, 0);
 
+    const now = new Date();
+    const createdAt = now.toISOString();
+    const refNo = buildDraftRefNo(pendingPayments, now);
+
     const record = {
       id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      refNo: `TR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
-        1000 + Math.random() * 9000
-      )}`,
+      refNo,
       type: 'treatment',
-      status: 'รอชำระเงิน',
-      createdAt: new Date().toISOString(),
+      status: resolveTreatmentStatusFromItems(items),
+      createdAt,
       createdBy: 'ระบบ',
       customer: {
         hn: String(treatmentSelectedCustomer?.hn || '').trim(),
         name: customerDisplayName(treatmentSelectedCustomer),
       },
       items: items.map((row) => ({
+        itemType: String(row?.itemType || '').trim(),
         code: String(row?.code || '').trim(),
         name: String(row?.name || '').trim(),
         price: Number(row?.price) || 0,
         qty: Number(row?.qty) || 1,
+        indication: String(row?.indication || '').trim(),
       })),
       subtotal,
+      issueStatus: 'pending',
+      issuedAt: '',
+      issuedBy: '',
     };
 
     setPendingPayments((prev) => {
@@ -1846,9 +2093,9 @@ export default function App() {
       return [record, ...src];
     });
 
-    console.log('บันทึกรายการรักษา (รอชำระเงิน):', record);
+    console.log(`บันทึกรายการรักษา (${record.status}):`, record);
     setTreatmentModalOpen(false);
-    openModal('บันทึกรายการรักษาสำเร็จ (รอชำระเงิน)');
+    openModal(`บันทึกรายการรักษาสำเร็จ (${record.status})`);
   };
 
   const updateTreatmentRecord = ({ id, items }) => {
@@ -1857,10 +2104,12 @@ export default function App() {
 
     const normalizedItems = (Array.isArray(items) ? items : [])
       .map((row) => ({
+        itemType: String(row?.itemType || '').trim(),
         code: String(row?.code || '').trim(),
         name: String(row?.name || '').trim(),
         price: Number(row?.price) || 0,
         qty: Number(row?.qty) || 1,
+        indication: String(row?.indication || '').trim(),
       }))
       .filter((row) => row.code);
 
@@ -1897,6 +2146,253 @@ export default function App() {
 
     setTreatmentDetailRow(null);
     openModal('บันทึกการแก้ไขรายการสำเร็จ');
+  };
+
+  const approveIssueStockRecord = (payload) => {
+    const recordId =
+      payload && typeof payload === 'object' ? payload.recordId : payload;
+    const itemIndexRaw =
+      payload && typeof payload === 'object' ? payload.itemIndex : null;
+
+    const key = String(recordId || '').trim();
+    if (!key) {
+      openModal('อนุมัติเบิกไม่สำเร็จ: ไม่พบเลขที่รายการ');
+      return;
+    }
+
+    const itemIndex = Number(itemIndexRaw);
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) {
+      openModal('อนุมัติเบิกไม่สำเร็จ: ไม่พบลำดับรายการสินค้า');
+      return;
+    }
+
+    const records = Array.isArray(pendingPayments) ? pendingPayments : [];
+    const record = records.find((r) => String(r?.id || '').trim() === key);
+    if (!record) {
+      openModal('อนุมัติเบิกไม่สำเร็จ: ไม่พบรายการบันทึก');
+      return;
+    }
+
+    const items = Array.isArray(record?.items) ? record.items : [];
+    const targetItem = items[itemIndex];
+    if (!targetItem) {
+      openModal('อนุมัติเบิกไม่สำเร็จ: ไม่พบข้อมูลสินค้าในรายการ');
+      return;
+    }
+
+    const itemStatus = String(targetItem?.issueStatus || '')
+      .trim()
+      .toLowerCase();
+    const isApproved = itemStatus === 'approved';
+
+    const code = String(targetItem?.code || '').trim();
+    const qtyNum = Number(targetItem?.qty);
+    const qty = Number.isFinite(qtyNum) ? Math.max(0, Math.floor(qtyNum)) : 0;
+
+    if (!code || qty <= 0) {
+      openModal('อนุมัติเบิกไม่สำเร็จ: ไม่พบรายการสินค้าที่ถูกต้อง');
+      return;
+    }
+
+    const productsList = Array.isArray(products) ? products : [];
+    const consumablesList = Array.isArray(consumables) ? consumables : [];
+    const productByCode = new Map(
+      productsList.map((p) => [String(p?.code || '').trim(), p])
+    );
+    const consumableByCode = new Map(
+      consumablesList.map((c) => [String(c?.code || '').trim(), c])
+    );
+
+    const requestedType = String(targetItem?.itemType || '')
+      .trim()
+      .toLowerCase();
+
+    const resolved = (() => {
+      if (requestedType === 'product') {
+        const p = productByCode.get(code);
+        if (p) return { itemType: 'product', item: p };
+        return null;
+      }
+      if (requestedType === 'consumable') {
+        const c = consumableByCode.get(code);
+        if (c) return { itemType: 'consumable', item: c };
+        return null;
+      }
+      const p = productByCode.get(code);
+      if (p) return { itemType: 'product', item: p };
+      const c = consumableByCode.get(code);
+      if (c) return { itemType: 'consumable', item: c };
+      return null;
+    })();
+
+    if (!resolved?.item) {
+      openModal(`อนุมัติเบิกไม่สำเร็จ: ไม่พบสินค้า/วัสดุ ${code}`);
+      return;
+    }
+
+    const inventoryItem = resolved.item;
+    const inventoryType = resolved.itemType;
+
+    const stockNum = Number(inventoryItem?.stock);
+    const stock = Number.isFinite(stockNum) ? stockNum : 0;
+    if (!isApproved && stock < qty) {
+      openModal(
+        `อนุมัติเบิกไม่สำเร็จ: สต๊อกไม่พอ ${code} (คงเหลือ ${stock}, ต้องใช้ ${qty})`
+      );
+      return;
+    }
+
+    const now = new Date().toISOString();
+    if (inventoryType === 'product') {
+      setProducts((prev) => {
+        const src = Array.isArray(prev) ? prev : [];
+        return src.map((p) => {
+          const codeKey = String(p?.code || '').trim();
+          if (codeKey !== code) return p;
+          const itemStockNum = Number(p?.stock);
+          const prevStock = Number.isFinite(itemStockNum) ? itemStockNum : 0;
+          const nextStock = isApproved
+            ? Math.max(0, prevStock + qty)
+            : Math.max(0, prevStock - qty);
+          return stripProductPhotoUrl({
+            ...p,
+            stock: nextStock,
+          });
+        });
+      });
+    } else {
+      setConsumables((prev) => {
+        const src = Array.isArray(prev) ? prev : [];
+        const sourceKey = `${key}__${itemIndex}`;
+        return src.map((c) => {
+          const codeKey = String(c?.code || '').trim();
+          if (codeKey !== code) return c;
+
+          const itemStockNum = Number(c?.stock);
+          const prevStock = Number.isFinite(itemStockNum) ? itemStockNum : 0;
+          const nextStock = isApproved
+            ? Math.max(0, prevStock + qty)
+            : Math.max(0, prevStock - qty);
+
+          const issues = Array.isArray(c?.stockIssues) ? c.stockIssues : [];
+          const filteredIssues = issues.filter(
+            (it) => String(it?.sourceKey || '').trim() !== sourceKey
+          );
+
+          const nextIssues = isApproved
+            ? filteredIssues
+            : [
+                {
+                  id: `${sourceKey}__${Date.now()}`,
+                  sourceKey,
+                  issuedAt: now.slice(0, 10),
+                  qty,
+                  lotNo: '-',
+                  expiryDate: '-',
+                  note: String(record?.refNo || key),
+                },
+                ...filteredIssues,
+              ];
+
+          return {
+            ...c,
+            stock: nextStock,
+            status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
+            stockIssues: nextIssues,
+          };
+        });
+      });
+    }
+
+    if (inventoryType === 'product') {
+      setProductIssueMovements((prev) => {
+        const src = Array.isArray(prev) ? prev : [];
+        const sourceKey = `${key}__${itemIndex}`;
+        if (isApproved) {
+          return src.filter((m) => {
+            const mSource = String(m?.sourceKey || '').trim();
+            const mId = String(m?.id || '').trim();
+            return !(mSource === sourceKey || mId.startsWith(`${sourceKey}__`));
+          });
+        }
+
+        return [
+          {
+            id: `${sourceKey}__${Date.now()}`,
+            sourceKey,
+            date: now,
+            type: 'เบิกสินค้า',
+            ref: String(record?.refNo || key),
+            code,
+            name:
+              String(targetItem?.name || '').trim() ||
+              String(inventoryItem?.nameTh || inventoryItem?.nameEn || '-'),
+            qty,
+            unit: String(inventoryItem?.unit || '-'),
+            lotNo: '-',
+            expiryDate: '-',
+            cost: Number(inventoryItem?.cost) || 0,
+          },
+          ...src.filter((m) => {
+            const mSource = String(m?.sourceKey || '').trim();
+            const mId = String(m?.id || '').trim();
+            return !(mSource === sourceKey || mId.startsWith(`${sourceKey}__`));
+          }),
+        ];
+      });
+    }
+
+    setPendingPayments((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((r) =>
+        String(r?.id || '').trim() === key
+          ? (() => {
+              const nextItems = (Array.isArray(r?.items) ? r.items : []).map(
+                (it, idx) => {
+                  if (idx !== itemIndex) return it;
+                  if (isApproved) {
+                    return {
+                      ...it,
+                      issueStatus: 'pending',
+                      issuedAt: '',
+                      issuedBy: '',
+                    };
+                  }
+                  return {
+                    ...it,
+                    issueStatus: 'approved',
+                    issuedAt: now,
+                    issuedBy: 'ผู้ใช้งานระบบ',
+                  };
+                }
+              );
+
+              const allApproved = nextItems.every(
+                (it) =>
+                  String(it?.issueStatus || '')
+                    .trim()
+                    .toLowerCase() === 'approved'
+              );
+              const status = resolveTreatmentStatusFromItems(nextItems);
+
+              return {
+                ...r,
+                items: nextItems,
+                status,
+                issueStatus: allApproved ? 'approved' : 'pending',
+                issuedAt: allApproved ? now : '',
+                issuedBy: allApproved ? 'ผู้ใช้งานระบบ' : '',
+              };
+            })()
+          : r
+      );
+    });
+
+    openModal(
+      isApproved
+        ? `ยกเลิกอนุมัติเรียบร้อยและคืนเข้า stock ${code} x${qty} (${String(record?.refNo || key)})`
+        : `อนุมัติเบิกสินค้า/วัสดุเรียบร้อย ${code} x${qty} (${String(record?.refNo || key)})`
+    );
   };
 
   const openCreateAppointment = () => {
@@ -2059,6 +2555,7 @@ export default function App() {
     const productsPages = new Set([
       'รายการสินค้า',
       'ค้นหารายการสินค้า',
+      'เบิกสินค้า',
       'รายการเคลื่อนไหวสินค้า',
       'Ingredient',
       'แก้ไขรายละเอียด Ingredient',
@@ -2129,6 +2626,265 @@ export default function App() {
     openModal('ออกจากระบบ');
   };
 
+  const normalizeIndicationText = (raw) =>
+    String(raw || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+
+  const addDrugIndication = () => {
+    const nextText = normalizeIndicationText(newIndicationText);
+    if (!nextText) {
+      openModal('กรุณากรอกข้อบ่งใช้ยา');
+      return;
+    }
+    const exists = (Array.isArray(drugIndications) ? drugIndications : []).some(
+      (row) =>
+        normalizeIndicationText(row?.text).toLowerCase() ===
+        nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีข้อบ่งใช้นี้แล้ว');
+      return;
+    }
+    setDrugIndications((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return [
+        ...src,
+        {
+          id: `ind_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          text: nextText,
+        },
+      ];
+    });
+    setNewIndicationText('');
+  };
+
+  const startEditDrugIndication = (row) => {
+    const id = String(row?.id || '').trim();
+    if (!id) return;
+    setEditingIndicationId(id);
+    setEditingIndicationText(String(row?.text || ''));
+  };
+
+  const cancelEditDrugIndication = () => {
+    setEditingIndicationId('');
+    setEditingIndicationText('');
+  };
+
+  const saveDrugIndicationEdit = () => {
+    const id = String(editingIndicationId || '').trim();
+    if (!id) return;
+
+    const nextText = normalizeIndicationText(editingIndicationText);
+    if (!nextText) {
+      openModal('กรุณากรอกข้อบ่งใช้ยา');
+      return;
+    }
+
+    const exists = (Array.isArray(drugIndications) ? drugIndications : []).some(
+      (row) =>
+        String(row?.id || '').trim() !== id &&
+        normalizeIndicationText(row?.text).toLowerCase() ===
+          nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีข้อบ่งใช้นี้แล้ว');
+      return;
+    }
+
+    setDrugIndications((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((row) =>
+        String(row?.id || '').trim() === id ? { ...row, text: nextText } : row
+      );
+    });
+    cancelEditDrugIndication();
+  };
+
+  const deleteDrugIndication = (id) => {
+    const key = String(id || '').trim();
+    if (!key) return;
+    setDrugIndications((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.filter((row) => String(row?.id || '').trim() !== key);
+    });
+    if (editingIndicationId === key) cancelEditDrugIndication();
+  };
+
+  const normalizeProductUnitText = (raw) =>
+    String(raw || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+
+  const addProductUnit = () => {
+    const nextText = normalizeProductUnitText(newProductUnitText);
+    if (!nextText) {
+      openModal('กรุณากรอกหน่วยของสินค้า');
+      return;
+    }
+    const exists = (Array.isArray(productUnits) ? productUnits : []).some(
+      (row) =>
+        normalizeProductUnitText(row?.text).toLowerCase() ===
+        nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีหน่วยของสินค้านี้แล้ว');
+      return;
+    }
+    setProductUnits((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return [
+        ...src,
+        {
+          id: `unit_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          text: nextText,
+        },
+      ];
+    });
+    setNewProductUnitText('');
+  };
+
+  const startEditProductUnit = (row) => {
+    const id = String(row?.id || '').trim();
+    if (!id) return;
+    setEditingProductUnitId(id);
+    setEditingProductUnitText(String(row?.text || ''));
+  };
+
+  const cancelEditProductUnit = () => {
+    setEditingProductUnitId('');
+    setEditingProductUnitText('');
+  };
+
+  const saveProductUnitEdit = () => {
+    const id = String(editingProductUnitId || '').trim();
+    if (!id) return;
+
+    const nextText = normalizeProductUnitText(editingProductUnitText);
+    if (!nextText) {
+      openModal('กรุณากรอกหน่วยของสินค้า');
+      return;
+    }
+
+    const exists = (Array.isArray(productUnits) ? productUnits : []).some(
+      (row) =>
+        String(row?.id || '').trim() !== id &&
+        normalizeProductUnitText(row?.text).toLowerCase() ===
+          nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีหน่วยของสินค้านี้แล้ว');
+      return;
+    }
+
+    setProductUnits((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((row) =>
+        String(row?.id || '').trim() === id ? { ...row, text: nextText } : row
+      );
+    });
+    cancelEditProductUnit();
+  };
+
+  const deleteProductUnit = (id) => {
+    const key = String(id || '').trim();
+    if (!key) return;
+    setProductUnits((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.filter((row) => String(row?.id || '').trim() !== key);
+    });
+    if (editingProductUnitId === key) cancelEditProductUnit();
+  };
+
+  const normalizeProductCategoryText = (raw) =>
+    String(raw || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+
+  const addProductCategory = () => {
+    const nextText = normalizeProductCategoryText(newProductCategoryText);
+    if (!nextText) {
+      openModal('กรุณากรอกหมวดหมู่สินค้า');
+      return;
+    }
+    const exists = (
+      Array.isArray(productCategories) ? productCategories : []
+    ).some(
+      (row) =>
+        normalizeProductCategoryText(row?.text).toLowerCase() ===
+        nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีหมวดหมู่สินค้านี้แล้ว');
+      return;
+    }
+    setProductCategories((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return [
+        ...src,
+        {
+          id: `cat_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          text: nextText,
+        },
+      ];
+    });
+    setNewProductCategoryText('');
+  };
+
+  const startEditProductCategory = (row) => {
+    const id = String(row?.id || '').trim();
+    if (!id) return;
+    setEditingProductCategoryId(id);
+    setEditingProductCategoryText(String(row?.text || ''));
+  };
+
+  const cancelEditProductCategory = () => {
+    setEditingProductCategoryId('');
+    setEditingProductCategoryText('');
+  };
+
+  const saveProductCategoryEdit = () => {
+    const id = String(editingProductCategoryId || '').trim();
+    if (!id) return;
+
+    const nextText = normalizeProductCategoryText(editingProductCategoryText);
+    if (!nextText) {
+      openModal('กรุณากรอกหมวดหมู่สินค้า');
+      return;
+    }
+
+    const exists = (
+      Array.isArray(productCategories) ? productCategories : []
+    ).some(
+      (row) =>
+        String(row?.id || '').trim() !== id &&
+        normalizeProductCategoryText(row?.text).toLowerCase() ===
+          nextText.toLowerCase()
+    );
+    if (exists) {
+      openModal('มีหมวดหมู่สินค้านี้แล้ว');
+      return;
+    }
+
+    setProductCategories((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.map((row) =>
+        String(row?.id || '').trim() === id ? { ...row, text: nextText } : row
+      );
+    });
+    cancelEditProductCategory();
+  };
+
+  const deleteProductCategory = (id) => {
+    const key = String(id || '').trim();
+    if (!key) return;
+    setProductCategories((prev) => {
+      const src = Array.isArray(prev) ? prev : [];
+      return src.filter((row) => String(row?.id || '').trim() !== key);
+    });
+    if (editingProductCategoryId === key) cancelEditProductCategory();
+  };
+
   const serviceSubPages = [
     'รายการบริการ',
     'สร้างคอร์ส',
@@ -2194,7 +2950,7 @@ export default function App() {
     {
       id: 'settings',
       label: 'ตั้งค่า',
-      items: ['ตั้งค่าทั่วไป'],
+      // Removed dropdown items to render as a simple button
     },
   ];
 
@@ -2208,7 +2964,7 @@ export default function App() {
     return false;
   };
 
-  function Page({ activePage }) {
+  function renderPage(activePage) {
     // Simple single-page views. Extend these with real components as needed.
     switch (activePage) {
       case 'บันทึกรายการ': {
@@ -2226,11 +2982,13 @@ export default function App() {
           .toLowerCase();
         const rows = q
           ? allRows.filter((r) => {
+              const displayStatus = resolveTreatmentStatusFromItems(r?.items);
               const hay = [
                 String(r?.id || ''),
                 String(r?.refNo || ''),
                 String(r?.customer?.hn || ''),
                 String(r?.customer?.name || ''),
+                displayStatus,
                 String(r?.status || ''),
                 String(r?.createdBy || ''),
                 ...(Array.isArray(r?.items)
@@ -2396,8 +3154,15 @@ export default function App() {
                           {Number(r?.subtotal || 0).toLocaleString('th-TH')}
                         </td>
                         <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
-                          <span className="badge badge--partial">
-                            {String(r?.status || '-')}
+                          <span
+                            className={
+                              resolveTreatmentStatusFromItems(r?.items) ===
+                              'รอชำระเงิน'
+                                ? 'badge badge--active'
+                                : 'badge badge--partial'
+                            }
+                          >
+                            {resolveTreatmentStatusFromItems(r?.items)}
                           </span>
                         </td>
                         <td style={{ padding: 6, textAlign: 'center' }}>
@@ -3089,6 +3854,9 @@ export default function App() {
               setEditingProduct(null);
               setActive('สร้างรายการสินค้าใหม่');
             }}
+            onIssueStock={() => {
+              setActive('เบิกสินค้า');
+            }}
             onViewIngredients={() => {
               setActive('Ingredient');
             }}
@@ -3106,6 +3874,16 @@ export default function App() {
             onViewConsumables={() => {
               setActive('วัสดุสิ้นเปลืองและอื่นๆ');
             }}
+          />
+        );
+      case 'เบิกสินค้า':
+        return (
+          <IssueProducts
+            records={pendingPayments}
+            products={products}
+            consumables={consumables}
+            onBack={() => setActive('รายการสินค้า')}
+            onApprove={approveIssueStockRecord}
           />
         );
       case 'Ingredient':
@@ -3471,6 +4249,7 @@ export default function App() {
         return (
           <ProductMovements
             products={products}
+            issueMovements={productIssueMovements}
             filterCode={movementFilterCode}
             onBack={() => setActive('รายการสินค้า')}
             onSaveCosts={({ code, cost }) => {
@@ -3719,6 +4498,20 @@ export default function App() {
                 : 'สร้างรายการสินค้าใหม่'
             }
             prefill={createProductFromIngredients || null}
+            categoryOptions={Array.from(
+              new Set(
+                (Array.isArray(productCategories) ? productCategories : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
+            unitOptions={Array.from(
+              new Set(
+                (Array.isArray(productUnits) ? productUnits : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
             onCancel={() => {
               if (createProductFromIngredients) {
                 setActive('Ingredient');
@@ -3751,6 +4544,20 @@ export default function App() {
           <EditProduct
             title="แก้ไขรายละเอียดสินค้า"
             initial={editingProduct}
+            categoryOptions={Array.from(
+              new Set(
+                (Array.isArray(productCategories) ? productCategories : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
+            unitOptions={Array.from(
+              new Set(
+                (Array.isArray(productUnits) ? productUnits : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
             onCancel={() => {
               setEditingProduct(null);
               setActive('รายการสินค้า');
@@ -3857,13 +4664,520 @@ export default function App() {
             }}
           />
         );
-      case 'ตั้งค่าทั่วไป':
+      case 'หมวดหมู่สินค้า':
+      case 'หน่วยของสินค้า':
+      case 'ข้อบ่งใช้':
+      case 'ตั้งค่า':
+      case 'ตั้งค่าทั่วไป': {
+        const isLegacyIndicationsPage = activePage === 'ข้อบ่งใช้';
+        const isLegacyProductUnitsPage = activePage === 'หน่วยของสินค้า';
+        const isLegacyProductCategoriesPage = activePage === 'หมวดหมู่สินค้า';
+        const showIndications =
+          isLegacyIndicationsPage || showDrugIndicationsPanel;
+        const showProductUnits =
+          isLegacyProductUnitsPage || showProductUnitsPanel;
+        const showProductCategories =
+          isLegacyProductCategoriesPage || showProductCategoriesPanel;
+
         return (
           <>
-            <h1>ตั้งค่า</h1>
-            <p>ตั้งค่าทั่วไปของระบบ</p>
+            <div className="page-sticky-header">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  marginBottom: 8,
+                }}
+              >
+                <h1 className="page-title" style={{ margin: 0 }}>
+                  ตั้งค่า
+                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      if (isLegacyIndicationsPage) {
+                        setActive('ตั้งค่า');
+                        setShowDrugIndicationsPanel(false);
+                        return;
+                      }
+                      setShowDrugIndicationsPanel((prev) => !prev);
+                    }}
+                  >
+                    {showIndications ? 'ซ่อนข้อบ่งใช้' : 'ข้อบ่งใช้'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      if (isLegacyProductUnitsPage) {
+                        setActive('ตั้งค่า');
+                        setShowProductUnitsPanel(false);
+                        return;
+                      }
+                      setShowProductUnitsPanel((prev) => !prev);
+                    }}
+                  >
+                    {showProductUnits ? 'ซ่อนหน่วยของสินค้า' : 'หน่วยของสินค้า'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      if (isLegacyProductCategoriesPage) {
+                        setActive('ตั้งค่า');
+                        setShowProductCategoriesPanel(false);
+                        return;
+                      }
+                      setShowProductCategoriesPanel((prev) => !prev);
+                    }}
+                  >
+                    {showProductCategories
+                      ? 'ซ่อนหมวดหมู่สินค้า'
+                      : 'หมวดหมู่สินค้า'}
+                  </button>
+                </div>
+              </div>
+              <p style={{ margin: 0 }}>ตั้งค่าทั่วไปของระบบ</p>
+            </div>
+
+            {showIndications ? (
+              <>
+                <h2 style={{ marginTop: 4, marginBottom: 8 }}>ข้อบ่งใช้</h2>
+                <p>จัดการรายการข้อบ่งใช้ยา</p>
+
+                <div className="table-card" style={{ marginTop: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="เช่น ก่อนอาหาร 3 เวลา"
+                      value={newIndicationText}
+                      onChange={(e) => setNewIndicationText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addDrugIndication();
+                        }
+                      }}
+                      style={{ maxWidth: 420 }}
+                    />
+                    <button
+                      type="button"
+                      className="button button--solid"
+                      onClick={addDrugIndication}
+                    >
+                      เพิ่มข้อบ่งใช้
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="table-card"
+                  style={{ marginTop: 12, overflowX: 'auto' }}
+                >
+                  <table className="customers-table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 80 }}>ลำดับ</th>
+                        <th>ข้อบ่งใช้ยา</th>
+                        <th style={{ width: 240 }}>จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(drugIndications) ? drugIndications : [])
+                        .length ? (
+                        (Array.isArray(drugIndications)
+                          ? drugIndications
+                          : []
+                        ).map((row, idx) => {
+                          const id = String(row?.id || '').trim();
+                          const isEditing = id && editingIndicationId === id;
+                          return (
+                            <tr key={id || String(idx)}>
+                              <td>{idx + 1}</td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    value={editingIndicationText}
+                                    onChange={(e) =>
+                                      setEditingIndicationText(e.target.value)
+                                    }
+                                  />
+                                ) : (
+                                  String(row?.text || '-')
+                                )}
+                              </td>
+                              <td>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {isEditing ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="button button--solid"
+                                        onClick={saveDrugIndicationEdit}
+                                      >
+                                        บันทึก
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="button"
+                                        onClick={cancelEditDrugIndication}
+                                      >
+                                        ยกเลิก
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="button button--blue"
+                                        onClick={() =>
+                                          startEditDrugIndication(row)
+                                        }
+                                      >
+                                        แก้ไข
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="button button--danger"
+                                        onClick={() => deleteDrugIndication(id)}
+                                      >
+                                        ลบ
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: 'center' }}>
+                            ยังไม่มีข้อบ่งใช้ยา
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+
+            {showProductUnits ? (
+              <>
+                <h2 style={{ marginTop: 20, marginBottom: 8 }}>
+                  หน่วยของสินค้า
+                </h2>
+                <p>จัดการรายการหน่วยของสินค้า</p>
+
+                <div className="table-card" style={{ marginTop: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="เช่น เม็ด"
+                      value={newProductUnitText}
+                      onChange={(e) => setNewProductUnitText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addProductUnit();
+                        }
+                      }}
+                      style={{ maxWidth: 420 }}
+                    />
+                    <button
+                      type="button"
+                      className="button button--solid"
+                      onClick={addProductUnit}
+                    >
+                      เพิ่มหน่วยของสินค้า
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="table-card"
+                  style={{ marginTop: 12, overflowX: 'auto' }}
+                >
+                  <table className="customers-table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 80 }}>ลำดับ</th>
+                        <th>หน่วยของสินค้า</th>
+                        <th style={{ width: 240 }}>จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(productUnits) ? productUnits : [])
+                        .length ? (
+                        (Array.isArray(productUnits) ? productUnits : []).map(
+                          (row, idx) => {
+                            const id = String(row?.id || '').trim();
+                            const isEditing = id && editingProductUnitId === id;
+                            return (
+                              <tr key={id || String(idx)}>
+                                <td>{idx + 1}</td>
+                                <td>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      className="input"
+                                      value={editingProductUnitText}
+                                      onChange={(e) =>
+                                        setEditingProductUnitText(
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  ) : (
+                                    String(row?.text || '-')
+                                  )}
+                                </td>
+                                <td>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      gap: 8,
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    {isEditing ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="button button--solid"
+                                          onClick={saveProductUnitEdit}
+                                        >
+                                          บันทึก
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="button"
+                                          onClick={cancelEditProductUnit}
+                                        >
+                                          ยกเลิก
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="button button--blue"
+                                          onClick={() =>
+                                            startEditProductUnit(row)
+                                          }
+                                        >
+                                          แก้ไข
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="button button--danger"
+                                          onClick={() => deleteProductUnit(id)}
+                                        >
+                                          ลบ
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+                        )
+                      ) : (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: 'center' }}>
+                            ยังไม่มีหน่วยของสินค้า
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+
+            {showProductCategories ? (
+              <>
+                <h2 style={{ marginTop: 20, marginBottom: 8 }}>
+                  หมวดหมู่สินค้า
+                </h2>
+                <p>จัดการรายการหมวดหมู่สินค้า</p>
+
+                <div className="table-card" style={{ marginTop: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="เช่น ยาเม็ด"
+                      value={newProductCategoryText}
+                      onChange={(e) =>
+                        setNewProductCategoryText(e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addProductCategory();
+                        }
+                      }}
+                      style={{ maxWidth: 420 }}
+                    />
+                    <button
+                      type="button"
+                      className="button button--solid"
+                      onClick={addProductCategory}
+                    >
+                      เพิ่มหมวดหมู่สินค้า
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="table-card"
+                  style={{ marginTop: 12, overflowX: 'auto' }}
+                >
+                  <table className="customers-table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 80 }}>ลำดับ</th>
+                        <th>หมวดหมู่สินค้า</th>
+                        <th style={{ width: 240 }}>จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(productCategories)
+                        ? productCategories
+                        : []
+                      ).length ? (
+                        (Array.isArray(productCategories)
+                          ? productCategories
+                          : []
+                        ).map((row, idx) => {
+                          const id = String(row?.id || '').trim();
+                          const isEditing =
+                            id && editingProductCategoryId === id;
+                          return (
+                            <tr key={id || String(idx)}>
+                              <td>{idx + 1}</td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    value={editingProductCategoryText}
+                                    onChange={(e) =>
+                                      setEditingProductCategoryText(
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  String(row?.text || '-')
+                                )}
+                              </td>
+                              <td>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {isEditing ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="button button--solid"
+                                        onClick={saveProductCategoryEdit}
+                                      >
+                                        บันทึก
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="button"
+                                        onClick={cancelEditProductCategory}
+                                      >
+                                        ยกเลิก
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="button button--blue"
+                                        onClick={() =>
+                                          startEditProductCategory(row)
+                                        }
+                                      >
+                                        แก้ไข
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="button button--danger"
+                                        onClick={() =>
+                                          deleteProductCategory(id)
+                                        }
+                                      >
+                                        ลบ
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: 'center' }}>
+                            ยังไม่มีหมวดหมู่สินค้า
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
           </>
         );
+      }
       default:
         return (
           <>
@@ -4149,9 +5463,7 @@ export default function App() {
       </header>
 
       <main>
-        <div className="container">
-          <Page activePage={active} />
-        </div>
+        <div className="container">{renderPage(active)}</div>
       </main>
 
       <AppointmentCustomerTypeModal
@@ -4216,6 +5528,7 @@ export default function App() {
         open={treatmentModalOpen}
         customers={ENRICHED_CUSTOMERS}
         products={products}
+        consumables={consumables}
         customerQuery={treatmentCustomerQuery}
         onCustomerQueryChange={setTreatmentCustomerQuery}
         selectedCustomer={treatmentSelectedCustomer}
@@ -4237,6 +5550,8 @@ export default function App() {
         customers={ENRICHED_CUSTOMERS}
         customerConditions={customerConditions}
         products={products}
+        consumables={consumables}
+        drugIndications={drugIndications}
         onClose={() => setTreatmentDetailRow(null)}
         onSave={updateTreatmentRecord}
       />

@@ -1437,6 +1437,22 @@ p {
   outline-color: #2563eb;
 }
 
+/* Orange variant for stock issue actions */
+.button--orange {
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.34);
+  color: #c2410c;
+}
+.button--orange:hover {
+  background: rgba(249, 115, 22, 0.2);
+}
+.button--orange:active {
+  background: rgba(249, 115, 22, 0.24);
+}
+.button--orange:focus-visible {
+  outline-color: #c2410c;
+}
+
 /* Disabled button appearance */
 .button:disabled {
   background: #f3f4f6;

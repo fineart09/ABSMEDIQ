@@ -44,6 +44,7 @@ const normalizeProducts = (src) => {
 
 export default function ProductMovements({
   products,
+  issueMovements,
   onBack,
   onSaveCosts,
   filterCode,
@@ -158,7 +159,27 @@ export default function ProductMovements({
       });
     });
 
-    let all = [...stockLotMovements, ...poMovements];
+    const issueList = Array.isArray(issueMovements) ? issueMovements : [];
+    const issueRows = issueList.map((row, idx) => {
+      const code = String(row?.code || '').trim();
+      const qty = toNumber(row?.qty);
+      const cost = toNumber(row?.cost);
+      return {
+        id: `ISSUE__${String(row?.id || '').trim() || code || 'nocode'}__${idx}`,
+        date: String(row?.date || '').trim() || '-',
+        type: String(row?.type || 'เบิกสินค้า').trim() || 'เบิกสินค้า',
+        code: code || '-',
+        name: String(row?.name || '').trim() || '-',
+        qty,
+        unit: String(row?.unit || '').trim() || '-',
+        lotNo: String(row?.lotNo || '').trim() || '-',
+        expiryDate: String(row?.expiryDate || '').trim() || '-',
+        ref: String(row?.ref || '').trim() || '-',
+        cost,
+      };
+    });
+
+    let all = [...stockLotMovements, ...poMovements, ...issueRows];
 
     if (codeFilter) {
       all = all.filter((r) => String(r?.code || '').trim() === codeFilter);
@@ -195,7 +216,7 @@ export default function ProductMovements({
           .includes(q)
       );
     });
-  }, [products, query, filterCode]);
+  }, [products, issueMovements, query, filterCode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
