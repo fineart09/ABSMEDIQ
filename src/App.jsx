@@ -1772,16 +1772,112 @@ export default function App() {
   const [treatmentProductQuery, setTreatmentProductQuery] = useState('');
   const [treatmentItems, setTreatmentItems] = useState([]);
   const [pendingPayments, setPendingPayments] = useState(() => {
-    const c1 = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS[0] : null;
-    const c2 = Array.isArray(ENRICHED_CUSTOMERS) ? ENRICHED_CUSTOMERS[1] : null;
-    const now = new Date();
-    const d1 = new Date(now);
-    d1.setDate(d1.getDate() - 1);
-    const d2 = new Date(now);
-    d2.setDate(d2.getDate() - 3);
+    const customers = Array.isArray(ENRICHED_CUSTOMERS)
+      ? ENRICHED_CUSTOMERS.filter(Boolean)
+      : [];
+    const products = Array.isArray(MOCK_PRODUCTS_FULL)
+      ? MOCK_PRODUCTS_FULL.filter((p) => String(p?.code || '').trim())
+      : [];
+    const productByCode = new Map(
+      products.map((p) => [String(p?.code || '').trim(), p])
+    );
+    const creators = ['แอดมิน', 'พนักงาน 1', 'พนักงาน 2', 'ระบบ'];
+
+    const randomInt = (min, max) => {
+      const lo = Number(min);
+      const hi = Number(max);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 0;
+      return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+    };
+
+    const pickOne = (list) => {
+      const src = Array.isArray(list) ? list : [];
+      if (!src.length) return null;
+      return src[randomInt(0, src.length - 1)] || null;
+    };
+
+    const normalizeItems = (itemsRaw) => {
+      const src = Array.isArray(itemsRaw) ? itemsRaw : [];
+      return src
+        .map((row) => {
+          const code = String(row?.code || '').trim();
+          if (!code) return null;
+          const linkedProduct = productByCode.get(code);
+          const qtyNum = Number(row?.qty);
+          const qty = Number.isFinite(qtyNum)
+            ? Math.max(1, Math.floor(qtyNum))
+            : 1;
+          const priceNum = Number(row?.price);
+          const linkedPriceNum = Number(
+            linkedProduct?.price ?? linkedProduct?.cost ?? 0
+          );
+          const price = Number.isFinite(priceNum)
+            ? Math.max(0, priceNum)
+            : Number.isFinite(linkedPriceNum)
+              ? Math.max(0, linkedPriceNum)
+              : 0;
+
+          return {
+            itemType: 'product',
+            code,
+            name:
+              String(
+                row?.name ||
+                  linkedProduct?.nameTh ||
+                  linkedProduct?.nameEn ||
+                  code
+              ).trim() || code,
+            price,
+            qty,
+            issueStatus:
+              String(row?.issueStatus || '')
+                .trim()
+                .toLowerCase() === 'approved'
+                ? 'approved'
+                : 'pending',
+          };
+        })
+        .filter(Boolean);
+    };
+
+    const buildRandomItems = () => {
+      if (!products.length) {
+        return [{ code: 'PRD001', name: 'สินค้าตัวอย่าง', price: 0, qty: 1 }];
+      }
+
+      const itemCount = randomInt(1, Math.min(3, products.length));
+      const usedCodes = new Set();
+      const items = [];
+      let guard = 0;
+
+      while (items.length < itemCount && guard < products.length * 3 + 10) {
+        guard += 1;
+        const p = pickOne(products);
+        const code = String(p?.code || '').trim();
+        if (!code || usedCodes.has(code)) continue;
+        usedCodes.add(code);
+
+        const priceRaw = Number(p?.price);
+        const price = Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0;
+        const qty = randomInt(1, 5);
+
+        items.push({
+          itemType: 'product',
+          code,
+          name: String(p?.nameTh || p?.nameEn || code).trim(),
+          price,
+          qty,
+          issueStatus: Math.random() < 0.35 ? 'approved' : 'pending',
+        });
+      }
+
+      return items.length
+        ? items
+        : [{ code: 'PRD001', name: 'สินค้าตัวอย่าง', price: 0, qty: 1 }];
+    };
 
     const make = ({ createdAt, customer, items, refNo, createdBy }) => {
-      const safeItems = Array.isArray(items) ? items : [];
+      const safeItems = normalizeItems(items);
       const subtotal = safeItems.reduce((acc, row) => {
         const qty = Number(row?.qty);
         const price = Number(row?.price);
@@ -1798,9 +1894,11 @@ export default function App() {
         id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
         refNo:
           String(refNo || '').trim() ||
-          `TR-${String(createdAt || '')
-            .slice(0, 10)
-            .replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
+          `DRAFT${String(createdAt || '')
+            .slice(0, 7)
+            .replace(/-/g, '')}${String(
+            Math.floor(1000 + Math.random() * 9000)
+          ).padStart(4, '0')}`,
         type: 'treatment',
         status: resolveTreatmentStatusFromItems(safeItems),
         createdAt,
@@ -1814,37 +1912,60 @@ export default function App() {
       };
     };
 
-    return [
-      make({
-        createdAt: d1.toISOString(),
-        refNo: 'TR-20260216-0001',
-        createdBy: 'แอดมิน',
-        customer: {
-          hn: String(c1?.hn || 'HN001'),
-          name: customerDisplayName(c1) || 'ลูกค้าตัวอย่าง 1',
-        },
-        items: [
-          { code: 'PRD001', name: 'ครีมบำรุงผิวหน้า', price: 890, qty: 1 },
-          { code: 'PRD002', name: 'เซรั่มวิตามินซี', price: 1290, qty: 1 },
-        ],
-      }),
-      make({
-        createdAt: d2.toISOString(),
-        refNo: 'TR-20260214-0002',
-        createdBy: 'แอดมิน',
-        customer: {
-          hn: String(c2?.hn || 'HN002'),
-          name: customerDisplayName(c2) || 'ลูกค้าตัวอย่าง 2',
-        },
-        items: [
-          { code: 'PRD005', name: 'มาสก์หน้าชุ่มชื้น', price: 79, qty: 5 },
-        ],
-      }),
-    ];
+    const records = [];
+    for (let i = 0; i < 10; i += 1) {
+      const createdDate = new Date();
+      createdDate.setDate(createdDate.getDate() - randomInt(0, 30));
+      createdDate.setHours(randomInt(8, 20), randomInt(0, 59), 0, 0);
+
+      const customer = pickOne(customers);
+      const createdAt = createdDate.toISOString();
+      const refNo = `DRAFT${createdAt.slice(0, 7).replace(/-/g, '')}${String(
+        i + 1
+      ).padStart(4, '0')}`;
+
+      records.push(
+        make({
+          createdAt,
+          refNo,
+          createdBy: String(pickOne(creators) || 'ระบบ'),
+          customer: {
+            hn: String(customer?.hn || `HN${String(i + 1).padStart(3, '0')}`),
+            name: customerDisplayName(customer) || `ลูกค้าตัวอย่าง ${i + 1}`,
+          },
+          items: buildRandomItems(),
+        })
+      );
+    }
+
+    const runningByMonth = new Map();
+    return records
+      .slice()
+      .sort((a, b) =>
+        String(a?.createdAt || '').localeCompare(String(b?.createdAt || ''))
+      )
+      .map((row) => {
+        const createdAt = String(row?.createdAt || '').trim();
+        const yyyyMm = createdAt
+          ? createdAt.slice(0, 7).replace(/-/g, '')
+          : new Date().toISOString().slice(0, 7).replace(/-/g, '');
+        const running = Number(runningByMonth.get(yyyyMm) || 0) + 1;
+        runningByMonth.set(yyyyMm, running);
+        return {
+          ...row,
+          refNo: `DRAFT${yyyyMm}${String(running).padStart(4, '0')}`,
+        };
+      })
+      .sort((a, b) =>
+        String(b?.refNo || '').localeCompare(String(a?.refNo || ''))
+      );
   });
   const [recordQuery, setRecordQuery] = useState('');
   const [recordPage, setRecordPage] = useState(1);
   const [recordPageSize, setRecordPageSize] = useState(10);
+  const [paymentReceiveQuery, setPaymentReceiveQuery] = useState('');
+  const [paymentReceivePage, setPaymentReceivePage] = useState(1);
+  const [paymentReceivePageSize, setPaymentReceivePageSize] = useState(10);
   const [treatmentDetailRow, setTreatmentDetailRow] = useState(null);
   const [active, setActive] = useState('ตารางนัดหมาย');
   const [movementFilterCode, setMovementFilterCode] = useState(null);
@@ -2899,6 +3020,14 @@ export default function App() {
 
   const scheduleSubPages = ['ตารางนัดหมาย', 'แก้ไขข้อมูลนัดหมาย'];
 
+  const paymentPages = [
+    'แก้ไขการชำระเงิน',
+    'รายงานการรับชำระเงิน',
+    'รายงานใบเสร็จรับเงิน',
+    'วางบิล',
+    'ลูกค้าค้างชำระ',
+  ];
+
   const navItems = [
     {
       id: 'schedule',
@@ -2916,16 +3045,8 @@ export default function App() {
       // Removed dropdown items to render as a simple button
     },
     {
-      id: 'payment',
-      label: 'การชำระเงิน',
-      items: [
-        'รับชำระเงิน',
-        'แก้ไขรายการรับชำระเงิน',
-        'รายงานรายรับ (เฉพาะการเงิน)',
-        'รายงาน (ใบเสร็จรับเงิน)',
-        'วางบิล',
-        'ลูกค้าค้างชำระ',
-      ],
+      id: 'payment-receive',
+      label: 'รับชำระเงิน',
     },
     {
       id: 'customers',
@@ -2972,6 +3093,9 @@ export default function App() {
           .filter((r) => String(r?.type || '') === 'treatment')
           .slice()
           .sort((a, b) => {
+            const ra = String(a?.refNo || '');
+            const rb = String(b?.refNo || '');
+            if (ra !== rb) return rb.localeCompare(ra);
             const ta = String(a?.createdAt || '');
             const tb = String(b?.createdAt || '');
             return tb.localeCompare(ta);
@@ -4584,11 +4708,319 @@ export default function App() {
             }}
           />
         );
-      case 'การชำระเงิน':
-      case 'รับชำระเงิน':
+      case 'รับชำระเงิน': {
+        const paymentRows = (
+          Array.isArray(pendingPayments) ? pendingPayments : []
+        )
+          .filter((r) => String(r?.type || '') === 'treatment')
+          .filter(
+            (r) => resolveTreatmentStatusFromItems(r?.items) === 'รอชำระเงิน'
+          )
+          .slice()
+          .sort((a, b) => {
+            const ra = String(a?.refNo || '');
+            const rb = String(b?.refNo || '');
+            if (ra !== rb) return rb.localeCompare(ra);
+            const ta = String(a?.createdAt || '');
+            const tb = String(b?.createdAt || '');
+            return tb.localeCompare(ta);
+          });
+
+        const q = String(paymentReceiveQuery || '')
+          .trim()
+          .toLowerCase();
+        const filteredRows = q
+          ? paymentRows.filter((r) => {
+              const refNo = String(r?.refNo || '').toLowerCase();
+              const customerName = String(
+                r?.customer?.name || ''
+              ).toLowerCase();
+              return refNo.includes(q) || customerName.includes(q);
+            })
+          : paymentRows;
+
+        const totalPages = Math.max(
+          1,
+          Math.ceil(filteredRows.length / paymentReceivePageSize)
+        );
+        const currentPage = Math.min(paymentReceivePage, totalPages);
+        const start = (currentPage - 1) * paymentReceivePageSize;
+        const end = start + paymentReceivePageSize;
+        const pagedRows = filteredRows.slice(start, end);
+        const visiblePages = getVisiblePages({ totalPages, currentPage });
+
+        return (
+          <section className="record-page">
+            <div className="page-sticky-header">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <h1 className="page-title" style={{ margin: 0 }}>
+                  การรับชำระเงิน
+                </h1>
+                <div
+                  className="toolbar"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                    marginLeft: 'auto',
+                  }}
+                >
+                  {paymentPages.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      className={`button ${active === page ? 'button--teal-strong' : ''}`.trim()}
+                      onClick={() => setActive(page)}
+                      aria-current={active === page ? 'page' : undefined}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="toolbar"
+                style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+              >
+                <input
+                  aria-label="ค้นหารายการรับชำระเงิน"
+                  placeholder="ค้นหาเลขที่บิล / ชื่อลูกค้า"
+                  value={paymentReceiveQuery}
+                  onChange={(e) => {
+                    setPaymentReceiveQuery(e.target.value);
+                    setPaymentReceivePage(1);
+                  }}
+                  style={{ flex: 1, padding: '8px 10px' }}
+                />
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setPaymentReceiveQuery('');
+                    setPaymentReceivePage(1);
+                  }}
+                >
+                  ล้าง
+                </button>
+              </div>
+            </div>
+
+            <div className="table-card" style={{ overflowX: 'auto' }}>
+              <table
+                className="customers-table"
+                style={{ width: '100%', borderCollapse: 'collapse' }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ padding: 8 }}>วันที่</th>
+                    <th style={{ padding: 8 }}>เลขที่บิล</th>
+                    <th style={{ padding: 8 }}>HN</th>
+                    <th style={{ padding: 8 }}>ชื่อลูกค้า</th>
+                    <th style={{ padding: 8, textAlign: 'right' }}>
+                      จำนวนเงิน
+                    </th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedRows.length ? (
+                    pagedRows.map((r) => (
+                      <tr
+                        key={String(r?.id || '')}
+                        style={{ borderTop: '1px solid #eaeaea' }}
+                      >
+                        <td style={{ padding: 8 }}>
+                          {formatDateDMY(String(r?.createdAt || ''))}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {String(r?.refNo || '-')}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          <span className="badge badge--hn">
+                            {String(r?.customer?.hn || '-')}
+                          </span>
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {String(r?.customer?.name || '-')}
+                        </td>
+                        <td style={{ padding: 8, textAlign: 'right' }}>
+                          {Number(r?.subtotal || 0).toLocaleString('th-TH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          <span className="badge badge--active">
+                            รอชำระเงิน
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        style={{
+                          padding: 12,
+                          textAlign: 'center',
+                          color: '#6b7280',
+                        }}
+                      >
+                        ไม่พบรายการรับชำระเงิน
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                marginTop: 12,
+              }}
+              aria-label="ตัวแบ่งหน้ารายการรับชำระเงิน"
+            >
+              <div style={{ color: '#6b7280' }}>
+                แสดง {pagedRows.length ? start + 1 : 0}-
+                {Math.min(end, filteredRows.length)} จาก {filteredRows.length}{' '}
+                รายการ
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  ต่อหน้า
+                  <select
+                    value={paymentReceivePageSize}
+                    onChange={(e) => {
+                      setPaymentReceivePageSize(Number(e.target.value) || 10);
+                      setPaymentReceivePage(1);
+                    }}
+                    className="select"
+                    aria-label="จำนวนรายการรับชำระเงินต่อหน้า"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() =>
+                    setPaymentReceivePage((p) => Math.max(1, p - 1))
+                  }
+                  disabled={currentPage <= 1}
+                  aria-label="ก่อนหน้า"
+                >
+                  ก่อนหน้า
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {visiblePages.map((p, idx) =>
+                    p === '…' ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        style={{ padding: '0 6px' }}
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={`page-${p}`}
+                        type="button"
+                        className="button"
+                        onClick={() => setPaymentReceivePage(p)}
+                        disabled={p === currentPage}
+                        aria-current={p === currentPage ? 'page' : undefined}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() =>
+                    setPaymentReceivePage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage >= totalPages}
+                  aria-label="ถัดไป"
+                >
+                  ถัดไป
+                </button>
+              </div>
+            </div>
+          </section>
+        );
+      }
+
+      case 'แก้ไขการชำระเงิน':
+      case 'แก้ไขรายการรับชำระเงิน':
+      case 'รายงานการรับชำระเงิน':
+      case 'รายงานใบเสร็จรับเงิน':
+      case 'วางบิล':
+      case 'ลูกค้าค้างชำระ':
         return (
           <>
-            <h1>การชำระเงิน</h1>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              <h1 className="page-title" style={{ margin: 0 }}>
+                การรับชำระเงิน
+              </h1>
+              <div
+                className="toolbar"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginLeft: 'auto',
+                }}
+              >
+                {paymentPages.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    className={`button ${active === page ? 'button--teal-strong' : ''}`.trim()}
+                    onClick={() => setActive(page)}
+                    aria-current={active === page ? 'page' : undefined}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p>จัดการการชำระเงิน ดูรายการ และออกใบเสร็จ</p>
           </>
         );
@@ -5428,7 +5860,7 @@ export default function App() {
                   <button
                     key={navItem.id}
                     type="button"
-                    className={active === navItem.label ? 'active' : ''}
+                    className={`${navItem.navClassName || ''}${active === navItem.label ? ' active' : ''}`.trim()}
                     onClick={() => handleNavItemClick(navItem.label)}
                     aria-current={active === navItem.label ? 'page' : undefined}
                   >

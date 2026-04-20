@@ -949,6 +949,28 @@ body[data-page-key='products']::before {
   outline-offset: 2px;
 }
 
+/* Payment actions are direct navbar buttons with product-list action tone */
+.nav button.nav-link--payment-action {
+  padding: 0.34rem 0.72rem;
+  border-color: rgba(15, 118, 110, 0.24);
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.nav button.nav-link--payment-action:hover {
+  background: rgba(15, 118, 110, 0.16);
+}
+
+.nav button.nav-link--payment-action:active,
+.nav button.nav-link--payment-action.active {
+  background: rgba(15, 118, 110, 0.2);
+}
+
+.nav button.nav-link--payment-action:focus-visible {
+  outline-color: #0f766e;
+}
+
 /* Caret for dropdown toggle */
 .nav .dropdown-toggle::after {
   content: '';
