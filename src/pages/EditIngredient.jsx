@@ -1,21 +1,41 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const CATEGORY_OPTIONS = [
-  'สารออกฤทธิ์',
-  'สารช่วย',
-  'สารเพิ่มปริมาณ',
-  'ตัวทำละลาย',
-  'อื่นๆ',
+const DEFAULT_PRODUCT_CATEGORY_OPTIONS = [
+  'ยาเม็ด',
+  'ยาน้ำ',
+  'ยาผง',
+  'เวชภัณฑ์',
+];
+const DEFAULT_PRODUCT_UNIT_OPTIONS = [
+  'เม็ด',
+  'แคปซูล',
+  'ขวด',
+  'หลอด',
+  'กระปุก',
+  'ซอง',
+  'กล่อง',
+  'แผง',
+  'แผ่น',
+  'แพ็ค',
+  'ชิ้น',
 ];
 
 const WAREHOUSE_OPTIONS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 
-const ALLOWED_CATEGORIES = new Set(CATEGORY_OPTIONS);
 const ALLOWED_WAREHOUSES = new Set(WAREHOUSE_OPTIONS);
 
-const normalizeCategory = (value) => {
-  const category = String(value || '').trim();
-  return ALLOWED_CATEGORIES.has(category) ? category : 'อื่นๆ';
+const normalizeCategory = (value) => String(value || '').trim();
+
+const normalizeOptionList = (options, fallbackOptions = []) => {
+  const src = Array.isArray(options) ? options : [];
+  const normalized = src.map((x) => String(x || '').trim()).filter(Boolean);
+  const unique = Array.from(new Set(normalized));
+  if (unique.length) return unique;
+  return Array.from(
+    new Set(
+      (fallbackOptions || []).map((x) => String(x || '').trim()).filter(Boolean)
+    )
+  );
 };
 
 const normalizeWarehouse = (value) => {
@@ -28,15 +48,27 @@ export default function EditIngredient({
   onSave,
   initial,
   title = 'แก้ไขรายละเอียด Ingredient',
+  categoryOptions,
+  unitOptions,
 }) {
+  const resolvedCategoryOptions = useMemo(
+    () =>
+      normalizeOptionList(categoryOptions, DEFAULT_PRODUCT_CATEGORY_OPTIONS),
+    [categoryOptions]
+  );
+  const resolvedUnitOptions = useMemo(
+    () => normalizeOptionList(unitOptions, DEFAULT_PRODUCT_UNIT_OPTIONS),
+    [unitOptions]
+  );
+
   const initialForm = useMemo(() => {
     if (!initial) {
       return {
         code: '',
         nameTh: '',
         nameEn: '',
-        category: CATEGORY_OPTIONS[0] || 'อื่นๆ',
-        unit: '',
+        category: resolvedCategoryOptions[0] || '',
+        unit: resolvedUnitOptions[0] || '',
         warehouse: WAREHOUSE_OPTIONS[0] || '1',
         status: 'ใช้งาน',
         description: '',
@@ -53,7 +85,7 @@ export default function EditIngredient({
       status: initial.status || 'ใช้งาน',
       description: initial.description || '',
     };
-  }, [initial]);
+  }, [initial, resolvedCategoryOptions, resolvedUnitOptions]);
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -156,12 +188,13 @@ export default function EditIngredient({
                 style={{ width: '100%' }}
               >
                 <option value="">-</option>
-                {CATEGORY_OPTIONS.map((c) => (
+                {resolvedCategoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
-                {form.category && !CATEGORY_OPTIONS.includes(form.category) ? (
+                {form.category &&
+                !resolvedCategoryOptions.includes(form.category) ? (
                   <option value={form.category}>{form.category}</option>
                 ) : null}
               </select>
@@ -172,13 +205,23 @@ export default function EditIngredient({
 
             <label>หน่วย *</label>
             <div>
-              <input
-                className="input"
-                value={form.unit}
+              <select
+                className="select"
+                value={String(form.unit || '')}
                 onChange={update('unit')}
-                placeholder="เช่น กรัม / ลิตร / กิโลกรัม"
                 aria-label="หน่วย"
-              />
+                style={{ width: '100%' }}
+              >
+                <option value="">-</option>
+                {resolvedUnitOptions.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+                {form.unit && !resolvedUnitOptions.includes(form.unit) ? (
+                  <option value={form.unit}>{form.unit}</option>
+                ) : null}
+              </select>
               {errors.unit ? (
                 <div className="field-error">{errors.unit}</div>
               ) : null}

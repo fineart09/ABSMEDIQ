@@ -1,6 +1,23 @@
 // Mock products dataset used by Products page
 
-export const MOCK_PRODUCTS_FULL = [
+function letterGroupFromIndex(index) {
+  let n = Math.max(0, Number(index) || 0);
+  let text = '';
+  do {
+    text = String.fromCharCode(65 + (n % 26)) + text;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return text;
+}
+
+function generateMockProductId(index) {
+  const safeIndex = Math.max(0, Number(index) || 0);
+  const group = Math.floor(safeIndex / 10);
+  const seq = String((safeIndex % 10) + 1).padStart(2, '0');
+  return `${letterGroupFromIndex(group)}/${seq}`;
+}
+
+const RAW_PRODUCTS = [
   {
     code: 'PRD001',
     nameTh: 'ครีมบำรุงผิวหน้า',
@@ -134,6 +151,11 @@ export const MOCK_PRODUCTS_FULL = [
     supplier: 'MedSupply',
   },
 ];
+
+export const MOCK_PRODUCTS_FULL = RAW_PRODUCTS.map((p, i) => ({
+  ...p,
+  productId: String(p?.productId || '').trim() || generateMockProductId(i),
+}));
 
 function seeded(seed) {
   // deterministic pseudo-random in [0, 1)

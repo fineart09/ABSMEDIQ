@@ -108,6 +108,18 @@ export default function IngredientMovements({
         const expiryDate = String(it?.expiryDate || '').trim() || '-';
         const qty = toNumber(it?.qty);
         const note = String(it?.note || '').trim();
+        const requestedBy =
+          String(it?.requestedBy || it?.issuedBy || it?.user || '').trim() ||
+          'ผู้ใช้งานระบบ';
+        const reviewStatus =
+          String(it?.reviewStatus || '')
+            .trim()
+            .toLowerCase() === 'approved'
+            ? 'approved'
+            : 'pending';
+        const reviewedBy = String(it?.reviewedBy || '').trim();
+        const producedBy =
+          String(it?.producedBy || it?.dispensedBy || '').trim() || '-';
 
         return {
           id: `ISSUE__${c.code}__${issuedAt || 'nodate'}__${lotNo}__${idx}`,
@@ -121,8 +133,14 @@ export default function IngredientMovements({
           expiryDate,
           ref: note,
           note,
-          issuedBy:
-            String(it?.issuedBy || it?.user || '').trim() || 'ผู้ใช้งานระบบ',
+          issuedBy: requestedBy,
+          requestedBy,
+          requestedAt: String(it?.requestedAt || '').trim(),
+          reviewStatus,
+          reviewedBy: reviewedBy || '-',
+          reviewedAt: String(it?.reviewedAt || '').trim(),
+          producedBy,
+          producedAt: String(it?.producedAt || '').trim(),
           unitPrice: cost,
           cost,
         };
@@ -162,6 +180,15 @@ export default function IngredientMovements({
           .toLowerCase()
           .includes(q) ||
         String(r.ref || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.requestedBy || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.reviewedBy || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.producedBy || '')
           .toLowerCase()
           .includes(q)
       );
@@ -247,11 +274,15 @@ export default function IngredientMovements({
         </div>
       </div>
 
-      <div className="table-card" style={{ overflowX: 'hidden' }}>
+      <div
+        className="table-card"
+        style={{ overflowX: 'auto', overflowY: 'hidden' }}
+      >
         <table
           className="customers-table"
           style={{
-            width: '100%',
+            width: 'max-content',
+            minWidth: 1240,
             borderCollapse: 'collapse',
             tableLayout: 'fixed',
             fontSize: 12,
@@ -282,6 +313,7 @@ export default function IngredientMovements({
               <th style={{ padding: 6, width: 80, whiteSpace: 'nowrap' }}>
                 วันหมดอายุ
               </th>
+              <th style={{ padding: 6, width: 180 }}>ธุรกรรม</th>
               <th style={{ padding: 6, width: 85, textAlign: 'right' }}>
                 ต้นทุนต่อหน่วย
               </th>
@@ -355,6 +387,25 @@ export default function IngredientMovements({
                   </td>
                   <td style={{ padding: 6, whiteSpace: 'nowrap' }}>
                     {formatDateDMY(r.expiryDate)}
+                  </td>
+                  <td style={{ padding: 6, fontSize: 11, lineHeight: 1.35 }}>
+                    {String(r.type || '').includes('รับ') ? (
+                      <span style={{ color: '#6b7280' }}>-</span>
+                    ) : (
+                      <>
+                        <div>
+                          สั่งตัด: {String(r.requestedBy || r.issuedBy || '-')}
+                        </div>
+                        <div>
+                          ตรวจสอบ:{' '}
+                          {String(r.reviewStatus || '').toLowerCase() ===
+                          'approved'
+                            ? `ตรวจสอบแล้ว (${String(r.reviewedBy || '-')})`
+                            : 'รอตรวจสอบ'}
+                        </div>
+                        <div>ตัดส่งผลิต: {String(r.producedBy || '-')}</div>
+                      </>
+                    )}
                   </td>
                   <td style={{ padding: 6 }}>
                     <input
@@ -439,7 +490,7 @@ export default function IngredientMovements({
               ))
             ) : (
               <tr>
-                <td style={{ padding: 12, color: '#6b7280' }} colSpan={12}>
+                <td style={{ padding: 12, color: '#6b7280' }} colSpan={13}>
                   ยังไม่มีรายการเคลื่อนไหว Ingredient
                 </td>
               </tr>
@@ -545,7 +596,23 @@ export default function IngredientMovements({
                   {detailRow.note || '-'}
                 </div>
                 <div>ผู้สั่งตัด</div>
-                <div>{detailRow.issuedBy || '-'}</div>
+                <div>{detailRow.requestedBy || detailRow.issuedBy || '-'}</div>
+                <div>สถานะตรวจสอบ</div>
+                <div>
+                  {String(detailRow.reviewStatus || '').toLowerCase() ===
+                  'approved'
+                    ? 'ตรวจสอบแล้ว'
+                    : 'รอตรวจสอบ'}
+                </div>
+                <div>ผู้ตรวจสอบ</div>
+                <div>
+                  {String(detailRow.reviewStatus || '').toLowerCase() ===
+                  'approved'
+                    ? detailRow.reviewedBy || '-'
+                    : '-'}
+                </div>
+                <div>ผู้ตัดยาส่งผลิต</div>
+                <div>{detailRow.producedBy || '-'}</div>
               </div>
             </div>
             <div className="modal-actions">

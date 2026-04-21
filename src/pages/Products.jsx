@@ -1,6 +1,71 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MOCK_PRODUCTS_FULL from '../mocks/productsFull';
 
+const enCollator = new Intl.Collator('en', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
+const thCollator = new Intl.Collator('th', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
+const getDisplayName = (product) =>
+  String(product?.nameTh || product?.nameEn || '').trim();
+
+const getNameSortBucket = (name) => {
+  if (/^[A-Za-z]/.test(name)) return 0;
+  if (/^[\u0E00-\u0E7F]/.test(name)) return 1;
+  return 2;
+};
+
+const compareProductName = (a, b) => {
+  const nameA = getDisplayName(a);
+  const nameB = getDisplayName(b);
+  const bucketA = getNameSortBucket(nameA);
+  const bucketB = getNameSortBucket(nameB);
+
+  if (bucketA !== bucketB) return bucketA - bucketB;
+
+  if (bucketA === 0) {
+    const byEn = enCollator.compare(nameA, nameB);
+    if (byEn !== 0) return byEn;
+  }
+
+  if (bucketA === 1) {
+    const byTh = thCollator.compare(nameA, nameB);
+    if (byTh !== 0) return byTh;
+  }
+
+  return thCollator.compare(nameA, nameB);
+};
+
+const compareBySortKey = (a, b, key) => {
+  if (key === 'code') {
+    return enCollator.compare(String(a?.code || ''), String(b?.code || ''));
+  }
+  if (key === 'productId') {
+    return enCollator.compare(
+      String(a?.productId || ''),
+      String(b?.productId || '')
+    );
+  }
+  if (key === 'name') {
+    return compareProductName(a, b);
+  }
+  if (key === 'category') {
+    return thCollator.compare(
+      String(a?.category || ''),
+      String(b?.category || '')
+    );
+  }
+  if (key === 'status') {
+    return thCollator.compare(String(a?.status || ''), String(b?.status || ''));
+  }
+  return 0;
+};
+
 const toCurrency = (n) => {
   const value = Number(n);
   if (!Number.isFinite(value)) return '-';
@@ -112,9 +177,11 @@ const normalizeProducts = (src) => {
 
     const stock = Number.isFinite(Number(p?.stock)) ? Number(p.stock) : 0;
     const status = p?.status || (stock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน');
+    const productId = String(p?.productId || '').trim();
     return {
       ...p,
       code,
+      productId,
       stock,
       status,
     };
@@ -138,6 +205,8 @@ export default function Products({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [importMessage] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDirection, setSortDirection] = useState('asc');
 
   useEffect(() => {
     const el = stickyRef.current;
@@ -180,6 +249,9 @@ export default function Products({
         String(p.code || '')
           .toLowerCase()
           .includes(q) ||
+        String(p.productId || '')
+          .toLowerCase()
+          .includes(q) ||
         String(p.nameTh || '')
           .toLowerCase()
           .includes(q) ||
@@ -196,11 +268,44 @@ export default function Products({
     });
   }, [query, base]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const ordered = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const dir = sortDirection === 'desc' ? -1 : 1;
+      const bySelected = compareBySortKey(a, b, sortBy);
+      if (bySelected !== 0) return bySelected * dir;
+
+      const byName = compareBySortKey(a, b, 'name');
+      if (byName !== 0) return byName;
+
+      return enCollator.compare(String(a?.code || ''), String(b?.code || ''));
+    });
+  }, [filtered, sortBy, sortDirection]);
+
+  const toggleSort = (key) => {
+    if (sortBy === key) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDirection('asc');
+    }
+    setPage(1);
+  };
+
+  const getSortMark = (key) => {
+    if (sortBy !== key) return '↕';
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  const getAriaSort = (key) => {
+    if (sortBy !== key) return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const end = start + pageSize;
-  const paged = filtered.slice(start, end);
+  const paged = ordered.slice(start, end);
 
   const visiblePages = useMemo(() => {
     const pages = [];
@@ -299,7 +404,7 @@ export default function Products({
         >
           <input
             aria-label="ค้นหารายการสินค้า"
-            placeholder="ค้นหารหัส / ชื่อสินค้า / หมวดหมู่ / สถานะ"
+            placeholder="ค้นหารหัส / ID สินค้า / ชื่อสินค้า / หมวดหมู่ / สถานะ"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1, padding: '8px 10px' }}
@@ -323,12 +428,113 @@ export default function Products({
         >
           <thead>
             <tr>
-              <th style={{ padding: 8 }}>รหัส</th>
-              <th style={{ padding: 8 }}>ชื่อสินค้า</th>
-              <th style={{ padding: 8 }}>หมวดหมู่</th>
+              <th style={{ padding: 8 }} aria-sort={getAriaSort('code')}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('code')}
+                  style={{
+                    border: 0,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`เรียงตามรหัส ${
+                    sortBy === 'code' && sortDirection === 'asc'
+                      ? 'จาก Z ไป A'
+                      : 'จาก A ไป Z'
+                  }`}
+                >
+                  รหัส {getSortMark('code')}
+                </button>
+              </th>
+              <th style={{ padding: 8 }} aria-sort={getAriaSort('productId')}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('productId')}
+                  style={{
+                    border: 0,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`เรียงตาม ID สินค้า ${
+                    sortBy === 'productId' && sortDirection === 'asc'
+                      ? 'จาก Z ไป A'
+                      : 'จาก A ไป Z'
+                  }`}
+                >
+                  ID สินค้า {getSortMark('productId')}
+                </button>
+              </th>
+              <th style={{ padding: 8 }} aria-sort={getAriaSort('name')}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('name')}
+                  style={{
+                    border: 0,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`เรียงตามชื่อสินค้า ${
+                    sortBy === 'name' && sortDirection === 'asc'
+                      ? 'จาก Z ไป A'
+                      : 'จาก A ไป Z'
+                  }`}
+                >
+                  ชื่อสินค้า {getSortMark('name')}
+                </button>
+              </th>
+              <th style={{ padding: 8 }} aria-sort={getAriaSort('category')}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('category')}
+                  style={{
+                    border: 0,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`เรียงตามหมวดหมู่ ${
+                    sortBy === 'category' && sortDirection === 'asc'
+                      ? 'จาก Z ไป A'
+                      : 'จาก A ไป Z'
+                  }`}
+                >
+                  หมวดหมู่ {getSortMark('category')}
+                </button>
+              </th>
               <th style={{ padding: 8 }}>ราคา</th>
               <th style={{ padding: 8 }}>คงเหลือ</th>
-              <th style={{ padding: 8 }}>สถานะ</th>
+              <th style={{ padding: 8 }} aria-sort={getAriaSort('status')}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  style={{
+                    border: 0,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`เรียงตามสถานะ ${
+                    sortBy === 'status' && sortDirection === 'asc'
+                      ? 'จาก Z ไป A'
+                      : 'จาก A ไป Z'
+                  }`}
+                >
+                  สถานะ {getSortMark('status')}
+                </button>
+              </th>
               <th style={{ padding: 8 }}>ดูข้อมูล / แก้ไข</th>
             </tr>
           </thead>
@@ -336,6 +542,7 @@ export default function Products({
             {paged.map((p) => (
               <tr key={p.code} style={{ borderTop: '1px solid #eaeaea' }}>
                 <td style={{ padding: 8 }}>{p.code}</td>
+                <td style={{ padding: 8 }}>{p.productId || '-'}</td>
                 <td style={{ padding: 8 }}>
                   {p.nameTh || p.nameEn || '-'}
                   {p.nameEn ? (
@@ -387,7 +594,7 @@ export default function Products({
             {paged.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ padding: 12, textAlign: 'center', color: '#6b7280' }}
                 >
                   ไม่พบข้อมูลในหน้านี้
@@ -409,8 +616,8 @@ export default function Products({
         aria-label="ตัวแบ่งหน้า"
       >
         <div style={{ color: '#6b7280' }}>
-          แสดง {paged.length ? start + 1 : 0}-{Math.min(end, filtered.length)}{' '}
-          จาก {filtered.length} รายการ
+          แสดง {paged.length ? start + 1 : 0}-{Math.min(end, ordered.length)}{' '}
+          จาก {ordered.length} รายการ
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <label

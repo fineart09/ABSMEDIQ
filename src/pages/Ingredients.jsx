@@ -1,21 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const CATEGORY_OPTIONS = [
-  'สารออกฤทธิ์',
-  'สารช่วย',
-  'สารเพิ่มปริมาณ',
-  'ตัวทำละลาย',
-  'อื่นๆ',
+const DEFAULT_PRODUCT_CATEGORY_OPTIONS = [
+  'ยาเม็ด',
+  'ยาน้ำ',
+  'ยาผง',
+  'เวชภัณฑ์',
+];
+const DEFAULT_PRODUCT_UNIT_OPTIONS = [
+  'เม็ด',
+  'แคปซูล',
+  'ขวด',
+  'หลอด',
+  'กระปุก',
+  'ซอง',
+  'กล่อง',
+  'แผง',
+  'แผ่น',
+  'แพ็ค',
+  'ชิ้น',
 ];
 
 const WAREHOUSE_OPTIONS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 
-const ALLOWED_CATEGORIES = new Set(CATEGORY_OPTIONS);
 const ALLOWED_WAREHOUSES = new Set(WAREHOUSE_OPTIONS);
 
-const normalizeCategory = (value) => {
-  const category = String(value || '').trim();
-  return ALLOWED_CATEGORIES.has(category) ? category : 'อื่นๆ';
+const normalizeCategory = (value) => String(value || '').trim();
+
+const normalizeOptionList = (options, fallbackOptions = []) => {
+  const src = Array.isArray(options) ? options : [];
+  const normalized = src.map((x) => String(x || '').trim()).filter(Boolean);
+  const unique = Array.from(new Set(normalized));
+  if (unique.length) return unique;
+  return Array.from(
+    new Set(
+      (fallbackOptions || []).map((x) => String(x || '').trim()).filter(Boolean)
+    )
+  );
 };
 
 const normalizeWarehouse = (value) => {
@@ -179,11 +199,17 @@ function IngredientModal({ item, onClose, onViewMovements }) {
   );
 }
 
-function CreateIngredientModal({ open, onClose, onSave }) {
+function CreateIngredientModal({
+  open,
+  onClose,
+  onSave,
+  categoryOptions,
+  unitOptions,
+}) {
   const [form, setForm] = useState({
     nameTh: '',
-    category: CATEGORY_OPTIONS[0] || 'อื่นๆ',
-    unit: '',
+    category: categoryOptions[0] || '',
+    unit: unitOptions[0] || '',
     warehouse: WAREHOUSE_OPTIONS[0] || '1',
     status: 'ใช้งาน',
     description: '',
@@ -209,14 +235,14 @@ function CreateIngredientModal({ open, onClose, onSave }) {
     if (!open) return;
     setForm({
       nameTh: '',
-      category: CATEGORY_OPTIONS[0] || 'อื่นๆ',
-      unit: '',
+      category: categoryOptions[0] || '',
+      unit: unitOptions[0] || '',
       warehouse: WAREHOUSE_OPTIONS[0] || '1',
       status: 'ใช้งาน',
       description: '',
     });
     setErrors({});
-  }, [open]);
+  }, [open, categoryOptions, unitOptions]);
 
   if (!open) return null;
 
@@ -276,11 +302,14 @@ function CreateIngredientModal({ open, onClose, onSave }) {
                   style={{ width: '100%' }}
                 >
                   <option value="">-</option>
-                  {CATEGORY_OPTIONS.map((c, idx) => (
+                  {categoryOptions.map((c, idx) => (
                     <option key={`${c}-${idx}`} value={c}>
                       {c}
                     </option>
                   ))}
+                  {form.category && !categoryOptions.includes(form.category) ? (
+                    <option value={form.category}>{form.category}</option>
+                  ) : null}
                 </select>
                 {errors.category ? (
                   <div className="field-error">{errors.category}</div>
@@ -289,13 +318,23 @@ function CreateIngredientModal({ open, onClose, onSave }) {
 
               <label>หน่วย *</label>
               <div>
-                <input
-                  className="input"
-                  value={form.unit}
+                <select
+                  className="select"
+                  value={String(form.unit || '')}
                   onChange={update('unit')}
-                  placeholder="เช่น กรัม / ลิตร / กิโลกรัม"
                   aria-label="หน่วย"
-                />
+                  style={{ width: '100%' }}
+                >
+                  <option value="">-</option>
+                  {unitOptions.map((u, idx) => (
+                    <option key={`${u}-${idx}`} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                  {form.unit && !unitOptions.includes(form.unit) ? (
+                    <option value={form.unit}>{form.unit}</option>
+                  ) : null}
+                </select>
                 {errors.unit ? (
                   <div className="field-error">{errors.unit}</div>
                 ) : null}
@@ -486,6 +525,9 @@ export default function Ingredients({
   draft,
   onDraftChange,
   onProceed,
+  currentActorName,
+  categoryOptions,
+  unitOptions,
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('ทั้งหมด');
@@ -518,6 +560,15 @@ export default function Ingredients({
   }, []);
 
   const rawItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
+  const resolvedCategoryOptions = useMemo(
+    () =>
+      normalizeOptionList(categoryOptions, DEFAULT_PRODUCT_CATEGORY_OPTIONS),
+    [categoryOptions]
+  );
+  const resolvedUnitOptions = useMemo(
+    () => normalizeOptionList(unitOptions, DEFAULT_PRODUCT_UNIT_OPTIONS),
+    [unitOptions]
+  );
   const setRawItems = (updater) => {
     if (typeof onItemsChange === 'function') onItemsChange(updater);
   };
@@ -591,6 +642,7 @@ export default function Ingredients({
     () => (Array.isArray(draft) ? draft : []),
     [draft]
   );
+  const actorName = String(currentActorName || '').trim() || 'ผู้ใช้งานระบบ';
 
   useEffect(() => {
     setPage(1);
@@ -609,6 +661,11 @@ export default function Ingredients({
       unit: item?.unit || '',
       qty: String(qty),
       note: String(note || ''),
+      requestedBy: actorName,
+      requestedAt: new Date().toISOString(),
+      reviewStatus: 'pending',
+      reviewedBy: '',
+      reviewedAt: '',
     };
 
     onDraftChange?.((prev) => {
@@ -622,8 +679,47 @@ export default function Ingredients({
         ? String(currentQty + Number(qty))
         : String(qty);
       const next = list.slice();
-      next[idx] = { ...next[idx], qty: bumpedQty };
+      next[idx] = {
+        ...next[idx],
+        qty: bumpedQty,
+        requestedBy: String(next[idx]?.requestedBy || '').trim() || actorName,
+        requestedAt:
+          String(next[idx]?.requestedAt || '').trim() ||
+          new Date().toISOString(),
+      };
       return next;
+    });
+  };
+
+  const toggleDraftReview = (code) => {
+    const key = String(code || '').trim();
+    if (!key) return;
+    onDraftChange?.((prev) => {
+      const list = Array.isArray(prev) ? prev : [];
+      return list.map((x) => {
+        const codeKey = String(x?.code || '').trim();
+        if (codeKey !== key) return x;
+
+        const approved =
+          String(x?.reviewStatus || '')
+            .trim()
+            .toLowerCase() === 'approved';
+        if (approved) {
+          return {
+            ...x,
+            reviewStatus: 'pending',
+            reviewedBy: '',
+            reviewedAt: '',
+          };
+        }
+
+        return {
+          ...x,
+          reviewStatus: 'approved',
+          reviewedBy: actorName,
+          reviewedAt: new Date().toISOString(),
+        };
+      });
     });
   };
 
@@ -711,7 +807,7 @@ export default function Ingredients({
             style={{ padding: '8px 10px' }}
           >
             <option value="ทั้งหมด">ทั้งหมด</option>
-            {CATEGORY_OPTIONS.map((c, idx) => (
+            {resolvedCategoryOptions.map((c, idx) => (
               <option key={`${c}-${idx}`} value={c}>
                 {c}
               </option>
@@ -916,13 +1012,17 @@ export default function Ingredients({
                 <th style={{ textAlign: 'left' }}>ชื่อ Ingredient</th>
                 <th style={{ textAlign: 'left', width: 160 }}>จำนวน</th>
                 <th style={{ textAlign: 'left', width: 220 }}>โน้ต</th>
-                <th style={{ textAlign: 'right', width: 120 }} />
+                <th style={{ textAlign: 'right', width: 260 }}>ดำเนินการ</th>
               </tr>
             </thead>
             <tbody>
               {selectedDraft.map((x) => {
                 const codeKey = String(x?.code || '').trim();
                 const displayName = x?.nameTh || x?.nameEn || '-';
+                const reviewed =
+                  String(x?.reviewStatus || '')
+                    .trim()
+                    .toLowerCase() === 'approved';
                 return (
                   <tr key={codeKey}>
                     <td>
@@ -969,13 +1069,39 @@ export default function Ingredients({
                       />
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => removeDraft(codeKey)}
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                          justifyContent: 'flex-end',
+                        }}
                       >
-                        ลบ
-                      </button>
+                        <button
+                          type="button"
+                          className={
+                            reviewed
+                              ? 'button button--green'
+                              : 'button button--orange'
+                          }
+                          onClick={() => toggleDraftReview(codeKey)}
+                          title={
+                            reviewed
+                              ? 'คลิกเพื่อยกเลิกตรวจสอบ'
+                              : 'คลิกเพื่อตรวจสอบรายการ'
+                          }
+                        >
+                          {reviewed ? 'ตรวจสอบแล้ว' : 'รอตรวจสอบ'}
+                        </button>
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => removeDraft(codeKey)}
+                        >
+                          ลบ
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1027,6 +1153,8 @@ export default function Ingredients({
       <CreateIngredientModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+        categoryOptions={resolvedCategoryOptions}
+        unitOptions={resolvedUnitOptions}
         onSave={(payload) => {
           setRawItems((prev) => {
             const list = Array.isArray(prev) ? prev : [];

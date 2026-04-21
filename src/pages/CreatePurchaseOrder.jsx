@@ -33,6 +33,39 @@ const formatDateTH = (iso) => {
   return `${d}/${m}/${y}`;
 };
 
+const normalizeText = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
+const getProductDisplayName = (product) =>
+  String(
+    product?.nameTh || product?.nameEn || product?.name || product?.code || ''
+  ).trim();
+
+const formatProductOptionText = (product) => {
+  const code = String(product?.code || '').trim();
+  const name = getProductDisplayName(product);
+  if (!code && !name) return '';
+  if (!code) return name;
+  if (!name) return code;
+  return `${code} - ${name}`;
+};
+
+const isProductLikeMatch = (product, query) => {
+  const q = normalizeText(query);
+  if (!q) return true;
+  const haystack = [
+    product?.code,
+    product?.nameTh,
+    product?.nameEn,
+    product?.name,
+  ]
+    .map((v) => normalizeText(v))
+    .join(' ');
+  return haystack.includes(q);
+};
+
 const escapeHtml = (value) =>
   String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -399,6 +432,10 @@ const createPurchaseOrderAttachmentHtml = ({
     const qty = toNumber(it?.qty);
     const p = products.find((x) => String(x?.code || '').trim() === code);
     const description = String(p?.description || '').trim();
+    const itemNote = String(it?.note || '').trim();
+    const detailText = [description, itemNote ? `หมายเหตุ: ${itemNote}` : '']
+      .filter(Boolean)
+      .join('\n');
     const unit = String(it?.unit || p?.unit || '').trim();
     const name = String(
       it?.nameTh || it?.nameEn || p?.nameTh || p?.nameEn || p?.name || ''
@@ -410,7 +447,7 @@ const createPurchaseOrderAttachmentHtml = ({
         <td>${escapeHtml(name || '-')}</td>
         <td class="amount qty-col">${escapeHtml(qty)}</td>
         <td>${escapeHtml(unit || '-')}</td>
-        <td class="desc">${escapeHtml(description || '-')}</td>
+        <td class="desc">${escapeHtml(detailText || '-')}</td>
       </tr>`;
   });
 
@@ -651,6 +688,7 @@ export default function CreatePurchaseOrder({
   const [status, setStatus] = useState(initial?.status || 'ร่าง');
   const [notes, setNotes] = useState(initial?.notes || '');
   const [printAttachment, setPrintAttachment] = useState(false);
+  const [activeProductRow, setActiveProductRow] = useState(null);
   const [items, setItems] = useState(
     Array.isArray(initial?.items) && initial.items.length
       ? initial.items.map((it) => ({
@@ -659,7 +697,9 @@ export default function CreatePurchaseOrder({
           unit: String(it?.unit || ''),
           qty: toNumber(it?.qty || 1),
           price: toNumber(it?.price || 0),
+          note: String(it?.note || ''),
           shipDate: String(it?.shipDate || ''),
+          productSearch: formatProductOptionText(it),
         }))
       : []
   );
@@ -672,6 +712,7 @@ export default function CreatePurchaseOrder({
       setStatus('ร่าง');
       setNotes('');
       setPrintAttachment(false);
+      setActiveProductRow(null);
       setItems([]);
       return;
     }
@@ -682,6 +723,7 @@ export default function CreatePurchaseOrder({
     setStatus(initial?.status || 'ร่าง');
     setNotes(initial?.notes || '');
     setPrintAttachment(false);
+    setActiveProductRow(null);
     setItems(
       Array.isArray(initial?.items) && initial.items.length
         ? initial.items.map((it) => ({
@@ -690,7 +732,9 @@ export default function CreatePurchaseOrder({
             unit: String(it?.unit || ''),
             qty: toNumber(it?.qty || 1),
             price: toNumber(it?.price || 0),
+            note: String(it?.note || ''),
             shipDate: String(it?.shipDate || ''),
+            productSearch: formatProductOptionText(it),
           }))
         : []
     );
@@ -710,7 +754,9 @@ export default function CreatePurchaseOrder({
         unit: first?.unit ? String(first.unit) : '',
         qty: 1,
         price: toNumber(first?.cost ?? first?.price ?? 0),
+        note: '',
         shipDate: '',
+        productSearch: formatProductOptionText(first),
       },
     ]);
   };
@@ -724,6 +770,56 @@ export default function CreatePurchaseOrder({
   const removeItem = (idx) => {
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  const selectProductForItem = (idx, product) => {
+    if (!product) return;
+    updateItem(idx, {
+      code: product?.code ? String(product.code) : '',
+      nameTh: getProductDisplayName(product),
+      unit: product?.unit ? String(product.unit) : '',
+      price: toNumber(product?.cost ?? product?.price ?? 0),
+      productSearch: formatProductOptionText(product),
+    });
+    setActiveProductRow(null);
+  };
+
+  const handleProductSearchChange = (idx, value) => {
+    const nextValue = String(value || '');
+    const exactCodeMatch = productList.find(
+      (p) => normalizeText(p?.code) === normalizeText(nextValue)
+    );
+
+    if (exactCodeMatch) {
+      selectProductForItem(idx, exactCodeMatch);
+      return;
+    }
+
+    updateItem(idx, {
+      productSearch: nextValue,
+      code: '',
+      nameTh: '',
+      unit: '',
+      price: 0,
+    });
+  };
+
+  useEffect(() => {
+    if (activeProductRow === null) return;
+    if (activeProductRow < items.length) return;
+    setActiveProductRow(null);
+  }, [activeProductRow, items.length]);
+
+  const activeProductSearchText = useMemo(() => {
+    if (activeProductRow === null) return '';
+    return String(items?.[activeProductRow]?.productSearch || '').trim();
+  }, [activeProductRow, items]);
+
+  const activeProductSuggestions = useMemo(() => {
+    if (activeProductRow === null) return [];
+    return productList
+      .filter((p) => isProductLikeMatch(p, activeProductSearchText))
+      .slice(0, 20);
+  }, [activeProductRow, activeProductSearchText, productList]);
 
   const total = useMemo(() => sumTotal(items), [items]);
 
@@ -782,6 +878,7 @@ export default function CreatePurchaseOrder({
           unit: String(it?.unit || '').trim(),
           qty: toNumber(it?.qty),
           price: toNumber(it?.price),
+          note: String(it?.note || '').trim(),
           shipDate: String(it?.shipDate || '').trim(),
         }))
         .filter((it) => it.code && it.qty > 0),
@@ -1028,6 +1125,7 @@ export default function CreatePurchaseOrder({
                   <th style={{ padding: 8 }}>จำนวน</th>
                   <th style={{ padding: 8 }}>ราคา/หน่วย</th>
                   <th style={{ padding: 8 }}>รวม</th>
+                  <th style={{ padding: 8 }}>หมายเหตุรายการ</th>
                   {isEdit ? (
                     <th style={{ padding: 8 }}>วันจัดส่งสินค้า</th>
                   ) : null}
@@ -1045,36 +1143,19 @@ export default function CreatePurchaseOrder({
                     >
                       <td style={{ padding: 8 }}>
                         <div className="po-item-product">
-                          <select
-                            className="select"
-                            value={it.code}
-                            onChange={(e) => {
-                              const code = e.target.value;
-                              const p = productList.find(
-                                (x) => String(x?.code || '') === String(code)
-                              );
-                              updateItem(idx, {
-                                code,
-                                nameTh: p?.nameTh
-                                  ? String(p.nameTh)
-                                  : p?.nameEn
-                                    ? String(p.nameEn)
-                                    : '',
-                                unit: p?.unit ? String(p.unit) : '',
-                                price: toNumber(p?.cost ?? p?.price ?? 0),
-                              });
+                          <input
+                            className="input"
+                            value={String(it.productSearch || '')}
+                            onFocus={() => setActiveProductRow(idx)}
+                            onChange={(e) =>
+                              handleProductSearchChange(idx, e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') setActiveProductRow(null);
                             }}
-                          >
-                            {productList.length ? (
-                              productList.map((p) => (
-                                <option key={p.code} value={p.code}>
-                                  {p.code} — {p.nameTh || p.nameEn || ''}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">(ไม่มีสินค้า)</option>
-                            )}
-                          </select>
+                            placeholder="พิมพ์ค้นหา รหัสหรือชื่อสินค้า"
+                            autoComplete="off"
+                          />
                         </div>
                       </td>
                       <td style={{ padding: 8 }}>
@@ -1133,6 +1214,18 @@ export default function CreatePurchaseOrder({
                         })}
                       </td>
 
+                      <td style={{ padding: 8 }}>
+                        <input
+                          className="input"
+                          value={String(it.note || '')}
+                          onChange={(e) =>
+                            updateItem(idx, { note: e.target.value })
+                          }
+                          placeholder="หมายเหตุของรายการนี้"
+                          style={{ width: 220 }}
+                        />
+                      </td>
+
                       {isEdit ? (
                         <td style={{ padding: 8 }}>
                           <input
@@ -1163,7 +1256,7 @@ export default function CreatePurchaseOrder({
                 {items.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={isEdit ? 8 : 7}
+                      colSpan={isEdit ? 9 : 8}
                       style={{ padding: 16, color: '#6b7280' }}
                     >
                       ยังไม่มีรายการสินค้า — กด “เพิ่มสินค้า” เพื่อเริ่มต้น
@@ -1173,6 +1266,42 @@ export default function CreatePurchaseOrder({
               </tbody>
             </table>
           </div>
+
+          {activeProductRow !== null ? (
+            <div className="po-product-search-panel" role="region">
+              <div className="po-product-search-panel-header">
+                <strong>รายการสินค้าที่ค้นหา</strong>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setActiveProductRow(null)}
+                >
+                  ปิด
+                </button>
+              </div>
+
+              <div className="po-product-search-panel-list">
+                {productList.length === 0 ? (
+                  <div className="po-item-product-empty">ไม่มีสินค้า</div>
+                ) : activeProductSuggestions.length === 0 ? (
+                  <div className="po-item-product-empty">
+                    ไม่พบสินค้าที่ค้นหา
+                  </div>
+                ) : (
+                  activeProductSuggestions.map((p, optionIdx) => (
+                    <button
+                      key={`${String(p?.code || 'product')}-${optionIdx}`}
+                      type="button"
+                      className="po-item-product-option"
+                      onClick={() => selectProductForItem(activeProductRow, p)}
+                    >
+                      {formatProductOptionText(p)}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
 
           <div
             style={{

@@ -1384,12 +1384,64 @@ const getVisiblePages = ({ totalPages, currentPage }) => {
   return pages;
 };
 
+const resolveCurrentActorName = () => {
+  if (typeof window === 'undefined') return 'ผู้ใช้งานระบบ';
+
+  const readObject = (raw) => {
+    if (!raw || typeof raw !== 'string') return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const pickName = (obj) => {
+    if (!obj || typeof obj !== 'object') return '';
+    const candidates = [
+      obj.displayName,
+      obj.fullName,
+      obj.name,
+      obj.username,
+      obj.userName,
+      obj.email,
+    ];
+    for (const c of candidates) {
+      const v = String(c || '').trim();
+      if (v) return v;
+    }
+    return '';
+  };
+
+  const fromGlobal = pickName(window.__ABSMEDIQ_CURRENT_USER__);
+  if (fromGlobal) return fromGlobal;
+
+  const storageKeys = [
+    'absmediq.currentUser',
+    'absmediq.user',
+    'currentUser',
+    'user',
+  ];
+  for (const key of storageKeys) {
+    const raw = window.localStorage?.getItem(key);
+    const parsed = readObject(raw);
+    const fromParsed = pickName(parsed);
+    if (fromParsed) return fromParsed;
+    const rawText = String(raw || '').trim();
+    if (rawText && !rawText.startsWith('{')) return rawText;
+  }
+
+  return 'ผู้ใช้งานระบบ';
+};
+
 export default function App() {
   const APPOINTMENTS_LS_KEY = 'absmediq.appointments.v3';
   const APPOINTMENT_TOPICS_LS_KEY = 'absmediq.appointmentTopics.v3';
   const MOCK_RESET_MARKER_KEY = 'absmediq.appointments.mockreset.20260310';
   const TOPIC_PALETTE_MIGRATION_KEY =
     'absmediq.appointmentTopics.paletteMigration.v20260310';
+  const currentActorName = resolveCurrentActorName();
 
   const isHex6 = (value) =>
     /^#[0-9a-fA-F]{6}$/.test(String(value || '').trim());
@@ -1987,6 +2039,43 @@ export default function App() {
     const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
     return src.map(stripProductPhotoUrl);
   });
+
+  useEffect(() => {
+    const src = Array.isArray(MOCK_PRODUCTS_FULL) ? MOCK_PRODUCTS_FULL : [];
+    const productIdByCode = new Map(
+      src.map((row) => [
+        String(row?.code || '').trim(),
+        String(row?.productId || '').trim(),
+      ])
+    );
+
+    setProducts((prev) => {
+      const list = Array.isArray(prev) ? prev : [];
+      let changed = false;
+
+      const next = list.map((p, i) => {
+        const currentId = String(p?.productId || '').trim();
+        if (currentId) return p;
+
+        const codeKey = String(p?.code || '').trim();
+        const fallbackFromCode = String(productIdByCode.get(codeKey) || '');
+        const fallbackFromIndex = src[i]?.productId
+          ? String(src[i].productId)
+          : '';
+        const migratedId = String(fallbackFromCode || fallbackFromIndex).trim();
+
+        if (!migratedId) return p;
+        changed = true;
+        return stripProductPhotoUrl({
+          ...p,
+          productId: migratedId,
+        });
+      });
+
+      return changed ? next : prev;
+    });
+  }, []);
+
   const [serviceFees, setServiceFees] = useState(() =>
     Array.isArray(SERVICE_FEES_FULL) ? SERVICE_FEES_FULL : []
   );
@@ -4015,8 +4104,23 @@ export default function App() {
           <Ingredients
             items={ingredients}
             onItemsChange={setIngredients}
+            categoryOptions={Array.from(
+              new Set(
+                (Array.isArray(productCategories) ? productCategories : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
+            unitOptions={Array.from(
+              new Set(
+                (Array.isArray(productUnits) ? productUnits : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
             draft={ingredientDraft}
             onDraftChange={setIngredientDraft}
+            currentActorName={currentActorName}
             onBack={() => setActive('รายการสินค้า')}
             onReceiveStock={() => setActive('รับ Ingredient เข้า stock')}
             onViewMovements={(ingredient) => {
@@ -4035,7 +4139,8 @@ export default function App() {
                 return;
               }
 
-              const now = new Date().toISOString().slice(0, 10);
+              const nowIso = new Date().toISOString();
+              const issueDate = nowIso.slice(0, 10);
               const currentIngredients = Array.isArray(ingredients)
                 ? ingredients
                 : [];
@@ -4094,6 +4199,20 @@ export default function App() {
                 updates.set(codeKey, {
                   qty: qtyNum,
                   note: String(it?.note || '').trim(),
+                  requestedBy:
+                    String(it?.requestedBy || it?.issuedBy || '').trim() ||
+                    currentActorName,
+                  requestedAt: String(it?.requestedAt || '').trim() || nowIso,
+                  reviewStatus:
+                    String(it?.reviewStatus || '')
+                      .trim()
+                      .toLowerCase() === 'approved'
+                      ? 'approved'
+                      : 'pending',
+                  reviewedBy: String(it?.reviewedBy || '').trim(),
+                  reviewedAt: String(it?.reviewedAt || '').trim(),
+                  producedBy: currentActorName,
+                  producedAt: nowIso,
                   consumeResult,
                 });
               }
@@ -4112,21 +4231,35 @@ export default function App() {
                   const consumedLots = update.consumeResult.consumed || [];
                   const issueEntries = consumedLots.length
                     ? consumedLots.map((lot) => ({
-                        issuedAt: now,
+                        issuedAt: issueDate,
                         lotNo: String(lot?.lotNo || '').trim() || '-',
                         expiryDate: String(lot?.expiryDate || '').trim() || '-',
                         qty: Number(lot?.qty) || update.qty,
                         note: update.note,
-                        issuedBy: 'ผู้ใช้งานระบบ',
+                        issuedBy: update.requestedBy,
+                        requestedBy: update.requestedBy,
+                        requestedAt: update.requestedAt,
+                        reviewStatus: update.reviewStatus,
+                        reviewedBy: update.reviewedBy,
+                        reviewedAt: update.reviewedAt,
+                        producedBy: update.producedBy,
+                        producedAt: update.producedAt,
                       }))
                     : [
                         {
-                          issuedAt: now,
+                          issuedAt: issueDate,
                           lotNo: '-',
                           expiryDate: '-',
                           qty: update.qty,
                           note: update.note,
-                          issuedBy: 'ผู้ใช้งานระบบ',
+                          issuedBy: update.requestedBy,
+                          requestedBy: update.requestedBy,
+                          requestedAt: update.requestedAt,
+                          reviewStatus: update.reviewStatus,
+                          reviewedBy: update.reviewedBy,
+                          reviewedAt: update.reviewedAt,
+                          producedBy: update.producedBy,
+                          producedAt: update.producedAt,
                         },
                       ];
 
@@ -4143,7 +4276,7 @@ export default function App() {
                     ...ingredient,
                     stock: nextStock,
                     status: nextStock > 0 ? 'ใช้งาน' : 'ไม่ใช้งาน',
-                    updatedAt: now,
+                    updatedAt: issueDate,
                     stockLots:
                       update.consumeResult.nextLots || ingredient.stockLots,
                     stockIssues: [...existingIssues, ...issueEntries],
@@ -4160,6 +4293,20 @@ export default function App() {
         return (
           <EditIngredient
             initial={editingIngredient}
+            categoryOptions={Array.from(
+              new Set(
+                (Array.isArray(productCategories) ? productCategories : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
+            unitOptions={Array.from(
+              new Set(
+                (Array.isArray(productUnits) ? productUnits : [])
+                  .map((row) => String(row?.text || '').trim())
+                  .filter(Boolean)
+              )
+            )}
             onCancel={() => {
               setEditingIngredient(null);
               setActive('Ingredient');

@@ -5,6 +5,29 @@ import {
   loadThaiAddressData,
 } from '../utils/thAddressData';
 
+function Field({ label, htmlFor, required, error, children }) {
+  return (
+    <div style={{ display: 'contents' }}>
+      <label htmlFor={htmlFor}>
+        {label}{' '}
+        {required ? (
+          <span aria-hidden="true" style={{ color: 'crimson' }}>
+            *
+          </span>
+        ) : null}
+      </label>
+      <div>
+        {children}
+        {error ? (
+          <div role="alert" className="field-error">
+            {error}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function CreateCustomer({
   onCancel,
   onSave,
@@ -355,27 +378,6 @@ export default function CreateCustomer({
   };
 
   // removed mock filler
-
-  const Field = ({ label, htmlFor, required, error, children }) => (
-    <div style={{ display: 'contents' }}>
-      <label htmlFor={htmlFor}>
-        {label}{' '}
-        {required ? (
-          <span aria-hidden="true" style={{ color: 'crimson' }}>
-            *
-          </span>
-        ) : null}
-      </label>
-      <div>
-        {children}
-        {error ? (
-          <div role="alert" className="field-error">
-            {error}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
 
   return (
     <section>

@@ -28,10 +28,16 @@ const sumTotal = (order) => {
 
 const countItems = (order) => {
   const items = Array.isArray(order?.items) ? order.items : [];
-  return items.reduce((acc, it) => {
+  return items.filter((it) => {
+    const code = String(it?.code || '').trim();
     const qty = Number(it?.qty);
-    return acc + (Number.isFinite(qty) ? qty : 0);
-  }, 0);
+    return code && Number.isFinite(qty) && qty > 0;
+  }).length;
+};
+
+const parsePoNoSortValue = (poNo) => {
+  const digits = String(poNo || '').replace(/\D/g, '');
+  return Number(digits) || 0;
 };
 
 const badgeClassForStatus = (status) => {
@@ -590,7 +596,11 @@ export default function PurchaseOrders({
         ? MOCK_PURCHASE_ORDERS_FULL
         : [];
 
-    return src.slice();
+    return src
+      .slice()
+      .sort(
+        (a, b) => parsePoNoSortValue(b?.poNo) - parsePoNoSortValue(a?.poNo)
+      );
   }, [purchaseOrders]);
 
   const filtered = useMemo(() => {
@@ -718,7 +728,7 @@ export default function PurchaseOrders({
               <th style={{ padding: 8 }}>เลขที่</th>
               <th style={{ padding: 8 }}>วันที่สั่งซื้อ</th>
               <th style={{ padding: 8 }}>ผู้จำหน่าย</th>
-              <th style={{ padding: 8 }}>จำนวน</th>
+              <th style={{ padding: 8 }}>รายการ</th>
               <th style={{ padding: 8 }}>ยอดรวม</th>
               <th style={{ padding: 8 }}>สถานะ</th>
               <th style={{ padding: 8 }}>รับสินค้า</th>

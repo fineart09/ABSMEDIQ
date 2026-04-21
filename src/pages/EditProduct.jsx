@@ -43,6 +43,7 @@ export default function EditProduct({
       return {
         code: '',
         nameTh: '',
+        productId: '',
         nameEn: '',
         category: '',
         unit: '',
@@ -59,6 +60,7 @@ export default function EditProduct({
     return {
       code: initial.code || '',
       nameTh: initial.nameTh || '',
+      productId: initial.productId || '',
       nameEn: initial.nameEn || '',
       category: initial.category || '',
       unit: initial.unit || '',
@@ -137,6 +139,7 @@ export default function EditProduct({
 
     onSave?.({
       ...form,
+      productId: String(form.productId || '').trim(),
       price: form.price === '' ? '' : Number(form.price),
       stock: form.stock === '' ? '' : Number(form.stock),
       lowStockAlertEnabled: Boolean(form.lowStockAlertEnabled),
@@ -205,6 +208,17 @@ export default function EditProduct({
             {errors.nameTh ? (
               <div className="field-error">{errors.nameTh}</div>
             ) : null}
+          </div>
+
+          <label>ID สินค้า</label>
+          <div>
+            <input
+              className="input"
+              value={form.productId}
+              onChange={update('productId')}
+              placeholder="เช่น A/01"
+              aria-label="ID สินค้า"
+            />
           </div>
 
           <label>หมวดหมู่ *</label>
